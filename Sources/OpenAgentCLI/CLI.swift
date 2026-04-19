@@ -40,10 +40,28 @@ enum CLI {
         let agent = createAgentOrExit(from: args)
 
         if let prompt = args.prompt {
-            // Single-shot mode: stream the prompt through OutputRenderer.
+            // Single-shot mode: use agent.prompt() for blocking query, then exit.
+            let result = await agent.prompt(prompt)
             let renderer = OutputRenderer()
-            let stream = agent.stream(prompt)
-            await renderer.renderStream(stream)
+
+            // Output response text to stdout
+            if !result.text.isEmpty {
+                print(result.text)
+            }
+
+            // Render summary line (turns, cost, duration)
+            renderer.renderSingleShotSummary(result)
+
+            // Determine exit code based on query status
+            let exitCode = CLIExitCode.forQueryStatus(result.status)
+
+            // For non-success statuses, write error to stderr
+            let errorMessage = CLISingleShot.formatErrorMessage(result)
+            if !errorMessage.isEmpty {
+                FileHandle.standardError.write((errorMessage + "\n").data(using: .utf8)!)
+            }
+
+            Foundation.exit(exitCode)
         } else {
             // REPL mode: start interactive loop.
             let reader = FileHandleInputReader()

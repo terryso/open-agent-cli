@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-19
-last_updated: 2026-04-19T18:45:00Z
+last_updated: 2026-04-19T20:00:00Z
 project: open-agent-cli
 project_key: NOKEY
 tracking_system: file-system
@@ -48,7 +48,7 @@ development_status:
   1-2-agent-factory-with-core-configuration: done
   1-3-streaming-output-renderer: done
   1-4-interactive-repl-loop: done
-  1-5-single-shot-mode: backlog
+  1-5-single-shot-mode: done
   1-6-smoke-test-performance-and-reliability: backlog
   epic-1-retrospective: optional
 

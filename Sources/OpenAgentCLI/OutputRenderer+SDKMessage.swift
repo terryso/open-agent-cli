@@ -103,16 +103,59 @@ extension OutputRenderer {
         }
     }
 
+    // MARK: - Single-Shot Mode (Story 1.5)
+
+    /// Render a summary line from a `QueryResult` for single-shot mode.
+    ///
+    /// Reuses the same format as the streaming result summary to avoid DRY violations.
+    /// Format: `--- Turns: N | Cost: $X.XXXX | Duration: Xs`
+    /// Error statuses include a red tag; cancelled uses dim styling.
+    func renderSingleShotSummary(_ result: QueryResult) {
+        switch result.status {
+        case .success:
+            let summary = formatSummaryLine(
+                numTurns: result.numTurns,
+                totalCostUsd: result.totalCostUsd,
+                durationMs: result.durationMs
+            )
+            output.write("--- \(summary)\n")
+
+        case .cancelled:
+            let label = ANSI.dim("[cancelled]")
+            output.write("--- \(label)\n")
+
+        case .errorMaxTurns, .errorDuringExecution, .errorMaxBudgetUsd:
+            let tag = ANSI.red("[\(result.status.rawValue)]")
+            let summary = formatSummaryLine(
+                numTurns: result.numTurns,
+                totalCostUsd: result.totalCostUsd,
+                durationMs: result.durationMs
+            )
+            output.write("--- \(tag) \(summary)\n")
+        }
+    }
+
     // MARK: - Private Helpers
 
     /// Format the summary portion of a result line.
     ///
     /// Example: `Turns: 3 | Cost: $0.0023 | Duration: 4.2s`
     private func formatSummary(_ data: SDKMessage.ResultData) -> String {
-        let costStr = String(format: "$%.4f", data.totalCostUsd)
-        let durationSeconds = Double(data.durationMs) / 1000.0
+        return formatSummaryLine(
+            numTurns: data.numTurns,
+            totalCostUsd: data.totalCostUsd,
+            durationMs: data.durationMs
+        )
+    }
+
+    /// Shared summary line formatter used by both streaming and single-shot modes.
+    ///
+    /// Extracts the common formatting logic to avoid duplication (DRY).
+    private func formatSummaryLine(numTurns: Int, totalCostUsd: Double, durationMs: Int) -> String {
+        let costStr = String(format: "$%.4f", totalCostUsd)
+        let durationSeconds = Double(durationMs) / 1000.0
         let durationStr = String(format: "%.1f", durationSeconds)
-        return "Turns: \(data.numTurns) | Cost: \(costStr) | Duration: \(durationStr)s"
+        return "Turns: \(numTurns) | Cost: \(costStr) | Duration: \(durationStr)s"
     }
 
     /// Provide actionable guidance for an assistant error type.
