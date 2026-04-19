@@ -40,11 +40,12 @@ enum CLI {
         let agent = createAgentOrExit(from: args)
 
         if let prompt = args.prompt {
-            // Single-shot mode — streaming output is Story 1.3's scope.
-            print("Agent created. Prompt: \(prompt)")
-            _ = agent
+            // Single-shot mode: stream the prompt through OutputRenderer.
+            let renderer = OutputRenderer()
+            let stream = agent.stream(prompt)
+            await renderer.renderStream(stream)
         } else {
-            // REPL mode — REPL loop is Story 1.4's scope.
+            // REPL mode -- REPL loop is Story 1.4's scope.
             print("Agent created. REPL mode ready.")
             _ = agent
         }
