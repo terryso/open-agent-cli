@@ -19,6 +19,3 @@ DerivedData/
 .vscode/
 *.swp
 *~
-
-# Claude Code
-.claude/
