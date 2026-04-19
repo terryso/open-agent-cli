@@ -33,7 +33,7 @@ enum CLI {
 
         // Check for missing API key (only needed for agent operations, not help/version)
         if args.apiKey == nil && args.prompt != nil {
-            let msg = "Error: No API key provided. Set --api-key flag or CODEANY_API_KEY environment variable."
+            let msg = "Error: No API key provided. Set --api-key flag or OPENAGENT_API_KEY environment variable."
             FileHandle.standardError.write((msg + "\n").data(using: .utf8)!)
             Foundation.exit(1)
         }

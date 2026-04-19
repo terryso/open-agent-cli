@@ -8,7 +8,7 @@ struct ParsedArgs {
     var helpRequested: Bool = false
     var versionRequested: Bool = false
     var prompt: String? = nil
-    var model: String = "claude-sonnet-4-6"
+    var model: String = "glm-5.1"
     var apiKey: String? = nil
     var baseURL: String? = nil
     var provider: String? = nil
@@ -237,9 +237,9 @@ enum ArgumentParser {
             i += 1
         }
 
-        // Resolve API key: --api-key flag > CODEANY_API_KEY env var
+        // Resolve API key: --api-key flag > OPENAGENT_API_KEY env var
         if result.apiKey == nil {
-            result.apiKey = ProcessInfo.processInfo.environment["CODEANY_API_KEY"]
+            result.apiKey = ProcessInfo.processInfo.environment["OPENAGENT_API_KEY"]
         }
 
         return result
@@ -285,11 +285,11 @@ enum ArgumentParser {
           Single-shot mode   Provide a prompt string for one-shot execution.
 
         Startup Options:
-          --model <model>          Model to use (default: claude-sonnet-4-6)
+          --model <model>          Model to use (default: glm-5.1)
           --mode <mode>            Permission mode: default, acceptEdits, bypassPermissions, plan, dontAsk, auto
           --provider <provider>    LLM provider: anthropic, openai
-          --api-key <key>          API key (or set CODEANY_API_KEY env var)
-          --base-url <url>         Override API base URL
+          --api-key <key>          API key (or set OPENAGENT_API_KEY env var)
+          --base-url <url>         API base URL (required for non-Anthropic providers)
 
         Interaction Options:
           --max-turns <n>          Maximum agent loop turns (default: 10)

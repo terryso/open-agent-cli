@@ -60,7 +60,7 @@ final class ArgumentParserTests: XCTestCase {
     func testNoArgs_defaultValues() throws {
         let result = ArgumentParser.parse(["openagent"])
 
-        XCTAssertEqual(result.model, "claude-sonnet-4-6", "Default model should be claude-sonnet-4-6")
+        XCTAssertEqual(result.model, "glm-5.1", "Default model should be glm-5.1")
         XCTAssertEqual(result.mode, "default", "Default mode should be 'default'")
         XCTAssertEqual(result.tools, "core", "Default tools tier should be 'core'")
         XCTAssertEqual(result.maxTurns, 10, "Default maxTurns should be 10")
@@ -368,8 +368,8 @@ final class ArgumentParserTests: XCTestCase {
 
     func testApiKeyFlag_overridesEnvVar() throws {
         // Set env var first
-        setenv("CODEANY_API_KEY", "env-key", 1)
-        defer { unsetenv("CODEANY_API_KEY") }
+        setenv("OPENAGENT_API_KEY", "env-key", 1)
+        defer { unsetenv("OPENAGENT_API_KEY") }
 
         // --api-key flag should take precedence over env var
         let result = ArgumentParser.parse(["openagent", "--api-key", "flag-key"])
@@ -379,17 +379,17 @@ final class ArgumentParserTests: XCTestCase {
 
     func testApiKeyResolution_fromEnvVar() throws {
         // Set env var, no flag
-        setenv("CODEANY_API_KEY", "env-key-456", 1)
-        defer { unsetenv("CODEANY_API_KEY") }
+        setenv("OPENAGENT_API_KEY", "env-key-456", 1)
+        defer { unsetenv("OPENAGENT_API_KEY") }
 
         let result = ArgumentParser.parse(["openagent"])
 
-        XCTAssertEqual(result.apiKey, "env-key-456", "API key should be resolved from CODEANY_API_KEY env var when no flag provided")
+        XCTAssertEqual(result.apiKey, "env-key-456", "API key should be resolved from OPENAGENT_API_KEY env var when no flag provided")
     }
 
     func testApiKeyResolution_noSource_returnsNil() throws {
         // Ensure env var is not set
-        unsetenv("CODEANY_API_KEY")
+        unsetenv("OPENAGENT_API_KEY")
 
         let result = ArgumentParser.parse(["openagent"])
 

@@ -1,0 +1,5 @@
+type,name,module,path,hash
+"csv","agent-manifest","_config","_config/agent-manifest.csv","d61e885757ee2c2ad146e5b876563144107b99c5de9ef4ed80b46f434bd1f951"
+"yaml","manifest","_config","_config/manifest.yaml","0688e387340c17b367f15d936572340891ff163bce4d093995fe12700606d51c"
+"yaml","config","bmm","bmm/config.yaml","b918b65f24f4450362373c505fd8d9a60f135a866f7ae599e6f1b351490449d9"
+"yaml","config","core","core/config.yaml","59333368560d4a9a7ee12b178fff8ec8238e3bb66fcaee8044086800fb9facf2"

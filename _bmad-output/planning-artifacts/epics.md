@@ -1,0 +1,961 @@
+---
+stepsCompleted: [1, 2, 3, 4]
+inputDocuments:
+  - _bmad-output/planning-artifacts/prd.md
+  - _bmad-output/planning-artifacts/architecture.md
+---
+
+# OpenAgentCLI - Epic 分解
+
+## 概述
+
+本文档提供 OpenAgentCLI 的完整 Epic 和 Story 分解，将 PRD 和架构文档中的需求分解为可实施的 Story。项目的使命是**通过仅使用 SDK 的公共 API 构建一个真实的 CLI 应用，系统性地验证 OpenAgentSDK 的综合能力**。
+
+## 需求清单
+
+### 功能需求
+
+FR1.1: CLI 通过 `swift run openagent` 或编译后的二进制启动
+FR1.2: 通过环境变量 `OPENAGENT_API_KEY` 或 `--api-key` 参数配置 API Key
+FR1.3: 通过 `--model` 参数选择模型，默认 `glm-5.1`
+FR1.4: 通过 `--base-url` 参数配置自定义 API 端点 (P1)
+FR1.5: 通过 `--provider` 参数选择 LLM 提供商 (P1)
+FR1.6: 通过配置文件持久化配置 (P2)
+
+FR2.1: 支持交互式 REPL 模式
+FR2.2: 支持单次提问模式：`openagent "问题"` 直接返回
+FR2.3: 支持管道模式：`echo "问题" | openagent --stdin` (P2)
+FR2.4: REPL 中通过 `/help` 显示可用命令列表
+FR2.5: 支持流式输出：实时显示 Agent 的思考和工具调用过程
+FR2.6: 支持中断当前操作：Ctrl+C 优雅中断不退出 REPL (P1)
+
+FR3.1: 默认加载所有 Core 层工具
+FR3.2: 通过 `--tools advanced` 加载 Advanced 层工具
+FR3.3: 通过 `--tools specialist` 加载 Specialist 层工具 (P1)
+FR3.4: 通过 `--tool-allow` / `--tool-deny` 白名单/黑名单控制 (P1)
+FR3.5: 工具调用过程实时显示：工具名、输入参数摘要、执行耗时
+
+FR4.1: 默认启用会话持久化
+FR4.2: 通过 `/sessions` 命令列出历史会话 (P1)
+FR4.3: 通过 `/resume <id>` 命令恢复历史会话 (P1)
+FR4.4: 通过 `/fork` 命令从当前会话分叉 (P2)
+FR4.5: 启动时自动恢复最近一次会话 (P1)
+
+FR5.1: 通过 `--mcp <config.json>` 加载 MCP 服务器配置
+FR5.2: 启动时自动连接配置的 MCP 服务器
+FR5.3: 通过 `/mcp status` 查看 MCP 连接状态 (P1)
+FR5.4: 通过 `/mcp reconnect <name>` 重连 MCP (P2)
+FR5.5: MCP 工具与内置工具统一调度
+
+FR6.1: 通过 `--mode` 设置权限模式
+FR6.2: 默认模式为 `default`：危险操作需要用户确认
+FR6.3: REPL 中通过 `/mode <mode>` 动态切换权限 (P1)
+FR6.4: 权限确认提示清晰显示操作内容和风险 (P1)
+
+FR7.1: 通过 `--hooks <config.json>` 加载钩子配置 (P1)
+FR7.2: 支持 21 个生命周期事件的 Shell 钩子 (P1)
+FR7.3: 钩子执行超时和错误不阻塞主流程 (P1)
+
+FR8.1: Agent 工具自动可用（Advanced 层加载时）
+FR8.2: 子代理继承父代理的权限和配置 (P1)
+FR8.3: 子代理执行进度实时显示 (P1)
+FR8.4: SendMessage 工具支持团队内通信 (P2)
+
+FR9.1: 支持 Markdown 渲染输出 (P1)
+FR9.2: 通过 `--output json` 输出结构化 JSON (P2)
+FR9.3: 通过 `--quiet` 模式只输出最终结果 (P1)
+FR9.4: 显示 token 使用量和成本统计 (P1)
+FR9.5: 支持配置 Thinking/Extended Thinking (P1)
+
+FR10.1: 通过 `--skill-dir <path>` 加载技能目录 (P0)
+FR10.2: 通过 `--skill <name>` 调用特定技能 (P0)
+FR10.3: 在 REPL 中通过 `/skills` 列出可用技能 (P2)
+FR10.4: 通过配置文件注册自定义工具 (P2)
+
+### 非功能需求
+
+NFR1.1: CLI 启动时间 < 2 秒（冷启动）
+NFR1.2: 首个 token 延迟 SDK 层开销 < 100ms
+NFR1.3: 流式输出延迟 SDK 层 < 50ms per chunk
+NFR1.4: 内存占用（空闲）< 50MB
+
+NFR2.1: API 错误自动重试（遵循 SDK RetryConfig）
+NFR2.2: 工具执行超时不崩溃
+NFR2.3: 会话保存失败不丢失对话
+NFR2.4: MCP 服务器断连自动重连
+NFR2.5: Ctrl+C 优雅退出（保存会话，清理资源）
+
+NFR3.1: 零配置即可使用（仅需 API Key）
+NFR3.2: 错误信息可操作
+NFR3.3: 帮助文档完整（`--help` 和 `/help`）
+NFR3.4: 跨平台一致（macOS 和 Linux）
+
+NFR4.1: 零 internal 访问（仅 `import OpenAgentSDK`）
+NFR4.2: API 缺口文档化
+NFR4.3: 每个 P0 功能验证一个 SDK 模块
+NFR4.4: CLI 代码作为 SDK 集成参考
+
+### 附加需求（来自架构文档）
+
+- 不使用起始模板——项目已通过 `swift package init` 初始化
+- 自定义参数解析器（不使用第三方库）
+- 每个文件一个类型的约定
+- 基于协议的可测试性（如 `OutputRendering`、`InputReading`）
+- 所有 SDK 状态通过 `AgentOptions` 传递
+- 信号处理：SIGINT → 中断，SIGTERM → 保存 + 退出
+- 配置分层：CLI 参数 > 环境变量 > 配置文件 > SDK 默认值
+- MCP 配置复用 SDK 原生的 `McpServerConfig` JSON 格式
+- SDK API 缺口使用 `// SDK-GAP:` 注释记录
+
+### FR 覆盖映射
+
+FR1.1: Epic 1 — Story 1.1
+FR1.2: Epic 1 — Story 1.2
+FR1.3: Epic 1 — Story 1.2
+FR1.4: Epic 7 — Story 7.4
+FR1.5: Epic 7 — Story 7.4
+FR1.6: Epic 7 — Story 7.3
+
+FR2.1: Epic 1 — Story 1.4
+FR2.2: Epic 1 — Story 1.5
+FR2.3: Epic 7 — Story 7.1
+FR2.4: Epic 1 — Story 1.4
+FR2.5: Epic 1 — Story 1.3
+FR2.6: Epic 5 — Story 5.3
+
+FR3.1: Epic 2 — Story 2.1
+FR3.2: Epic 2 — Story 2.1
+FR3.3: Epic 6 — Story 6.2
+FR3.4: Epic 6 — Story 6.2
+FR3.5: Epic 2 — Story 2.2
+
+FR4.1: Epic 3 — Story 3.1
+FR4.2: Epic 3 — Story 3.2
+FR4.3: Epic 3 — Story 3.2
+FR4.4: Epic 7 — Story 7.5
+FR4.5: Epic 3 — Story 3.3
+
+FR5.1: Epic 4 — Story 4.1
+FR5.2: Epic 4 — Story 4.1
+FR5.3: Epic 7 — Story 7.5
+FR5.4: Epic 7 — Story 7.5
+FR5.5: Epic 4 — Story 4.1
+
+FR6.1: Epic 5 — Story 5.1
+FR6.2: Epic 5 — Story 5.1
+FR6.3: Epic 6 — Story 6.3
+FR6.4: Epic 5 — Story 5.2
+
+FR7.1: Epic 6 — Story 6.1
+FR7.2: Epic 6 — Story 6.1
+FR7.3: Epic 6 — Story 6.1
+
+FR8.1: Epic 4 — Story 4.2
+FR8.2: Epic 4 — Story 4.2
+FR8.3: Epic 4 — Story 4.2
+FR8.4: Epic 7 — Story 7.5
+
+FR9.1: Epic 6 — Story 6.5
+FR9.2: Epic 7 — Story 7.2
+FR9.3: Epic 6 — Story 6.4
+FR9.4: Epic 1 — Story 1.3
+FR9.5: Epic 6 — Story 6.4
+
+FR10.1: Epic 2 — Story 2.3
+FR10.2: Epic 2 — Story 2.3
+FR10.3: Epic 7 — Story 7.7
+FR10.4: Epic 7 — Story 7.7
+
+## Epic 列表
+
+### Epic 1: 首次对话
+用户可以在 5 分钟内安装、配置并与 AI Agent 进行对话。交付 REPL 循环、流式输出、单次提问模式和基础 /help 功能。
+**覆盖的 FR：** FR1.1, FR1.2, FR1.3, FR2.1, FR2.2, FR2.4, FR2.5, FR9.4
+**覆盖的 NFR：** NFR1.1, NFR1.3, NFR1.4, NFR2.1, NFR3.1
+**优先级：** P0 (MVP)
+
+### Epic 2: 带工具的 Agent
+用户可以让 Agent 使用内置的 Core 和 Advanced 工具执行真实任务，并提供实时的工具调用可见性和基于技能的提示模板。
+**覆盖的 FR：** FR3.1, FR3.2, FR3.5, FR10.1, FR10.2
+**优先级：** P0 (MVP)
+
+### Epic 3: 会话连续性
+用户可以跨 CLI 重启保存和恢复对话，以及列出/管理历史会话。
+**覆盖的 FR：** FR4.1, FR4.2, FR4.3, FR4.5
+**优先级：** P0 (MVP)
+
+### Epic 4: 外部集成（MCP 与子代理）
+用户可以通过连接 MCP 服务器和委派任务给子代理来扩展 Agent 的能力。
+**覆盖的 FR：** FR5.1, FR5.2, FR5.5, FR8.1, FR8.2, FR8.3
+**优先级：** P0 (MVP)
+
+### Epic 5: 安全执行与控制
+用户可以控制 Agent 被允许做什么、批准危险操作以及中断执行。
+**覆盖的 FR：** FR6.1, FR6.2, FR6.4, FR2.6
+**优先级：** P0 (MVP)
+
+### Epic 6: 高级功能
+用户可以使用钩子、专业工具、富文本输出、思考配置、技能和动态权限切换。
+**覆盖的 FR：** FR3.3, FR3.4, FR6.3, FR7.1, FR7.2, FR7.3, FR9.1, FR9.3, FR9.4, FR9.5
+**优先级：** P1
+
+### Epic 7: 高级用户与自定义
+用户可以使用管道、JSON 输出、配置文件、会话分叉、SendMessage 和自定义工具注册。
+**覆盖的 FR：** FR1.4, FR1.5, FR1.6, FR2.3, FR4.4, FR5.3, FR5.4, FR8.4, FR9.2, FR10.3, FR10.4
+**优先级：** P2
+
+---
+
+## Epic 1: 首次对话
+
+用户可以在 5 分钟内安装、配置并与 AI Agent 进行对话。此 Epic 交付核心 REPL 体验——使 CLI 有用的最小功能集。
+
+### Story 1.1: CLI 入口与参数解析器
+
+作为一个开发者，
+我想要一个能解析命令行参数并启动相应模式的 CLI，
+以便我无需编辑配置文件即可配置 Agent。
+
+**验收标准：**
+
+**假设** CLI 已安装
+**当** 我运行 `openagent --help`
+**那么** 显示帮助信息，列出所有可用参数
+**并且** 进程以退出码 0 退出
+
+**假设** 未提供任何参数
+**当** 我运行 `openagent`
+**那么** CLI 以默认设置进入 REPL 模式
+
+**假设** 提供了带引号的字符串
+**当** 我运行 `openagent "what is 2+2?"`
+**那么** CLI 以单次提问模式运行并在回答后退出
+
+**假设** 提供了无效参数
+**当** 我运行 `openagent --invalid-flag`
+**那么** 错误信息解释了无效参数
+**并且** 进程以退出码 1 退出
+
+**SDK API：** `AgentOptions`, `createAgent(options:)`
+**文件：** `main.swift`, `CLI.swift`, `ArgumentParser.swift`, `Version.swift`, `ANSI.swift`
+
+### Story 1.2: Agent 工厂与核心配置
+
+作为一个开发者，
+我想要 CLI 通过 base_url、api_key 和 model 三个核心配置创建 SDK Agent，
+以便我能连接到任意兼容的 LLM API（如 GLM、Anthropic、OpenAI 等）。
+
+**验收标准：**
+
+**假设** 传入了 `--api-key <key> --base-url <url> --model <model>`
+**当** CLI 创建 Agent
+**那么** Agent 使用指定的 base_url、api_key 和 model 连接到 LLM API
+**并且** 能够成功获得响应
+
+**假设** 只传入了 `--api-key` 和 `--base-url`，未指定 `--model`
+**当** CLI 创建 Agent
+**那么** 使用默认模型（`glm-5.1`）创建 Agent
+
+**假设** 通过环境变量 `OPENAGENT_API_KEY` 设置了 API Key
+**当** CLI 启动且未传入 `--api-key`
+**那么** 使用环境变量中的 API Key 创建 Agent
+
+**假设** 未通过任何方式设置 API Key
+**当** CLI 启动
+**那么** 显示清晰的错误信息 "请通过 --api-key 参数或 OPENAGENT_API_KEY 环境变量设置 API Key"
+**并且** 进程以退出码 1 退出
+
+**假设** 传入了 `--max-turns 5` 和 `--max-budget 1.0`
+**当** 创建 Agent
+**那么** `AgentOptions.maxTurns` 为 5，`maxBudgetUsd` 为 1.0
+
+**SDK API：** `createAgent(options:)`, `AgentOptions`, `SDK_VERSION`
+**文件：** `AgentFactory.swift`
+
+### Story 1.3: 流式输出渲染器
+
+作为一个用户，
+我想要看到 Agent 的响应在生成时实时出现，
+以便我不必盯着空白屏幕等待完整响应。
+
+**验收标准：**
+
+**假设** Agent 正在流式传输响应
+**当** `SDKMessage.assistant(data)` 消息到达
+**那么** 文本逐字符输出到标准输出，无缓冲
+
+**假设** Agent 响应完成
+**当** `SDKMessage.result(data)` 到达
+**那么** 显示汇总行，包括轮次、成本和耗时
+
+**假设** 系统消息到达（如自动压缩）
+**当** 收到 `SDKMessage.system(data)`
+**那么** 以灰色/暗色文本显示，带有 `[system]` 前缀
+
+**假设** 流式传输过程中发生错误
+**当** `SDKMessage.result` 包含错误信息
+**那么** 错误以红色显示，并附有可操作的指导
+
+**SDK API：** `AsyncStream<SDKMessage>`, `SDKMessage`（所有变体）
+**文件：** `OutputRenderer.swift`, `OutputRenderer+SDKMessage.swift`
+
+### Story 1.4: 交互式 REPL 循环
+
+作为一个用户，
+我想要一个交互式提示符，可以持续地输入问题并获得回答，
+以便我与 Agent 进行多轮对话。
+
+**验收标准：**
+
+**假设** CLI 处于 REPL 模式
+**当** 我看到 `>` 提示符
+**那么** 我可以输入消息并按 Enter 发送
+
+**假设** 我在 REPL 中发送了一条消息
+**当** Agent 正在处理
+**那么** 我看到实时的流式输出
+
+**假设** Agent 完成响应
+**当** 流完成
+**那么** `>` 提示符重新出现，等待下一条消息
+
+**假设** 我在 REPL 中输入 `/help`
+**当** 命令被处理
+**那么** 显示可用 REPL 命令列表
+
+**假设** 我在 REPL 中输入 `/exit` 或 `/quit`
+**当** 命令被处理
+**那么** CLI 优雅退出
+
+**假设** 我输入空行或仅包含空白字符
+**当** 输入被读取
+**那么** 被忽略，提示符重新出现
+
+**SDK API：** `agent.stream(_:)`, `agent.close()`
+**文件：** `REPLLoop.swift`
+
+### Story 1.5: 单次提问模式
+
+作为一个用户，
+我想要从命令行运行单个查询并获取结果，
+以便我可以将 CLI 集成到脚本和快速任务中。
+
+**验收标准：**
+
+**假设** 传入了提示字符串作为参数
+**当** CLI 以单次提问模式运行
+**那么** Agent 处理提示并输出响应
+
+**假设** 单次提问响应完成
+**当** 结果到达
+**那么** CLI 显示响应文本并以退出码 0 退出
+
+**假设** 单次提问模式中发生错误
+**当** API 调用失败
+**那么** 错误输出到 stderr，CLI 以退出码 1 退出
+
+**SDK API：** `agent.prompt(_:)`, `QueryResult`
+**文件：** `CLI.swift`
+
+### Story 1.6: 冒烟测试——性能与可靠性
+
+作为一个开发者，
+我想要验证 CLI 满足基本的性能和可靠性目标，
+以便我知道 SDK 集成不会引入不可接受的开销。
+
+**验收标准：**
+
+**假设** CLI 在没有先前会话的情况下启动
+**当** Agent 创建完成且 `>` 提示符出现
+**那么** 启动时间在 2 秒以内（从进程启动到提示符出现）
+
+**假设** Agent 正在流式传输响应
+**当** `SDKMessage.assistant` 数据块到达
+**那么** 每个数据块的渲染开销在 50ms 以内（无可见延迟）
+
+**假设** 发生 API 错误（如无效模型、速率限制）
+**当** SDK 进行重试
+**那么** 重试对用户透明，CLI 继续运行
+
+**假设** CLI 在 `>` 提示符空闲
+**当** 测量内存使用量
+**那么** 保持在 50MB 以内
+
+**SDK API：** `createAgent()`, `AsyncStream<SDKMessage>`, `QueryResult`
+**文件：** 通过手动测试验证，非专用源文件
+
+---
+
+## Epic 2: 带工具的 Agent
+
+用户可以让 Agent 使用内置工具执行真实任务，并实时查看 Agent 的操作过程。
+
+### Story 2.1: 核心工具加载与显示
+
+作为一个用户，
+我想要 Agent 默认拥有文件和 Shell 工具的访问权限，
+以便它能执行真实任务，如读取文件和运行命令。
+
+**验收标准：**
+
+**假设** CLI 以默认设置启动
+**当** 创建 Agent
+**那么** 加载 Core 层工具（Bash, Read, Write, Edit, Glob, Grep, WebFetch, WebSearch, AskUser, ToolSearch）
+
+**假设** CLI 使用 `--tools advanced` 启动
+**当** 创建 Agent
+**那么** 同时加载 Core 和 Advanced 层工具
+
+**假设** 指定了 `--tools all`
+**当** 创建 Agent
+**那么** Core + Advanced + Specialist 层工具全部加载
+
+**假设** 工具已加载
+**当** 我在 REPL 中输入 `/tools`
+**那么** 显示已加载的工具名称列表
+
+**SDK API：** `getAllBaseTools(tier:)`, `assembleToolPool()`, `ToolTier`
+**文件：** `AgentFactory.swift`
+
+### Story 2.2: 工具调用可见性
+
+作为一个用户，
+我想要实时看到 Agent 调用了哪些工具，
+以便我了解 Agent 在做什么并能调试问题。
+
+**验收标准：**
+
+**假设** Agent 在响应过程中调用了一个工具
+**当** `SDKMessage.toolUse(data)` 到达
+**那么** 以青色高亮显示一行，展示工具名称和输入参数摘要
+
+**假设** 工具返回结果
+**当** `SDKMessage.toolResult(data)` 到达
+**那么** 显示结果文本（超过 500 字符时截断）
+**并且** 如果 `isError` 为 true，结果以红色显示
+
+**假设** Agent 进行多个连续的工具调用
+**当** 它们在流中到达
+**那么** 每个工具调用按顺序实时显示
+
+**SDK API：** `SDKMessage.toolUse`, `SDKMessage.toolResult`
+**文件：** `OutputRenderer+SDKMessage.swift`
+
+### Story 2.3: 技能加载与调用
+
+作为一个用户，
+我想要从目录加载技能定义并调用特定技能，
+以便我可以使用预定义的提示模板处理常见任务，无需重启。
+
+**验收标准：**
+
+**假设** 技能目录包含有效的技能定义
+**当** 我运行 `openagent --skill-dir ./skills`
+**那么** 技能被加载到 SDK 的 `SkillRegistry` 中
+
+**假设** 传入了 `--skill review`
+**当** CLI 启动
+**那么** 自动调用 "review" 技能
+
+**假设** 技能已加载
+**当** 我在 REPL 中输入 `/skills`
+**那么** 列出可用技能及其名称和描述
+
+**假设** 提供了无效的技能名称
+**当** 我运行 `openagent --skill nonexistent`
+**那么** 错误信息显示 "Skill not found" 并列出可用技能
+
+**SDK API：** `SkillRegistry`, `createSkillTool()`, `Skill`, `AgentOptions.skillDirectories`
+**文件：** `AgentFactory.swift`, `REPLLoop.swift`
+
+---
+
+## Epic 3: 会话连续性
+
+用户可以跨 CLI 重启保存和恢复对话，因此不会丢失上下文。
+
+### Story 3.1: 退出时自动保存会话
+
+作为一个用户，
+我想要在退出 CLI 时自动保存对话，
+以便我稍后可以接着上次的进度继续。
+
+**验收标准：**
+
+**假设** CLI 在 REPL 模式下运行，且会话持久化已启用（默认）
+**当** 我输入 `/exit` 或 Ctrl+D
+**那么** 当前会话通过 SDK 的 SessionStore 保存
+
+**假设** 会话保存失败（如磁盘已满）
+**当** 保存操作出错
+**那么** 显示警告但 CLI 仍然正常退出
+
+**假设** CLI 以 `--no-restore` 启动
+**当** 配置会话时
+**那么** 自动恢复被禁用，但自动保存仍然有效
+
+**SDK API：** `AgentOptions.sessionStore`, `AgentOptions.persistSession`, `AgentOptions.sessionId`
+**文件：** `SessionManager.swift`
+
+### Story 3.2: 列出和恢复历史会话
+
+作为一个用户，
+我想要查看过去的对话并恢复其中一个，
+以便我可以继续之前的任务。
+
+**验收标准：**
+
+**假设** 存在已保存的会话
+**当** 我在 REPL 中输入 `/sessions`
+**那么** 显示历史会话列表，包括 ID、日期和首条消息预览
+
+**假设** 我有一个会话 ID
+**当** 我在 REPL 中输入 `/resume <id>`
+**那么** CLI 加载该会话并继续对话
+
+**假设** 提供了无效的会话 ID
+**当** 我输入 `/resume invalid-id`
+**那么** 错误信息显示 "Session not found"
+
+**SDK API：** `AgentOptions.sessionId`, `AgentOptions.continueRecentSession`, `SessionStore`
+**文件：** `REPLLoop.swift`（斜杠命令）, `SessionManager.swift`
+
+### Story 3.3: 启动时自动恢复上次会话
+
+作为一个用户，
+我想要 CLI 在启动时自动继续上次的对话，
+以便我不必每次都手动恢复。
+
+**验收标准：**
+
+**假设** 存在最近的已保存会话
+**当** CLI 以 REPL 模式启动（不带 `--no-restore`）
+**那么** 自动加载并继续上次的会话
+
+**假设** 传入了 `--session <id>`
+**当** CLI 启动
+**那么** 加载指定会话而非最近的会话
+
+**假设** 传入了 `--no-restore`
+**当** CLI 启动
+**那么** 无论是否有已保存的会话，都启动新会话
+
+**假设** 会话恢复失败（文件损坏）
+**当** CLI 启动
+**那么** 显示警告并启动新会话
+
+**SDK API：** `AgentOptions.continueRecentSession`, `AgentOptions.sessionId`
+**文件：** `SessionManager.swift`, `CLI.swift`
+
+---
+
+## Epic 4: 外部集成（MCP 与子代理）
+
+用户可以通过连接 MCP 服务器和委派任务给子代理来扩展 Agent 的能力。
+
+### Story 4.1: MCP 服务器配置与连接
+
+作为一个用户，
+我想要将外部 MCP 工具服务器连接到我的 Agent，
+以便 Agent 可以使用我定义的工具（如数据库、API、自定义服务）。
+
+**验收标准：**
+
+**假设** 存在有效的 MCP 配置 JSON 文件 `./mcp-config.json`
+**当** 我运行 `openagent --mcp ./mcp-config.json`
+**那么** MCP 服务器在启动时连接
+
+**假设** MCP 服务器已配置
+**当** Agent 创建其工具池
+**那么** MCP 工具与内置工具一起被包含
+
+**假设** MCP 服务器连接失败
+**当** CLI 启动
+**那么** 显示警告，列出失败的服务器，但 CLI 继续运行
+
+**假设** MCP 配置文件不存在
+**当** 我运行 `openagent --mcp nonexistent.json`
+**那么** 清晰的错误信息显示 "MCP config file not found"
+**并且** CLI 以退出码 1 退出
+
+**SDK API：** `McpServerConfig`, `McpStdioConfig`, `AgentOptions.mcpServers`
+**文件：** `MCPConfigLoader.swift`, `AgentFactory.swift`
+
+### Story 4.2: 子代理委派
+
+作为一个用户，
+我想要 Agent 为复杂任务生成子代理，
+以便工作可以并行化或委派给专门的 Agent。
+
+**验收标准：**
+
+**假设** 指定了 `--tools advanced`
+**当** Agent 创建其工具池
+**那么** 包含 Agent 工具（子代理生成器）
+
+**假设** Agent 决定生成子代理
+**当** 子代理运行
+**那么** 其输出在终端中可见，带有缩进前缀
+
+**假设** 子代理完成
+**当** 返回结果
+**那么** 父代理使用子代理的输出继续
+
+**假设** 父代理有权限模式和 API 配置
+**当** 子代理被生成
+**那么** 子代理继承父代理的权限模式和 API 配置
+
+**假设** 子代理正在执行
+**当** 产生进度消息
+**那么** 进度在终端中以缩进的 `[sub-agent]` 前缀显示
+
+**SDK API：** `createAgentTool()`, `AgentOptions.agentName`, `PermissionMode`
+**文件：** `AgentFactory.swift`, `OutputRenderer+SDKMessage.swift`
+
+---
+
+## Epic 5: 安全执行与控制
+
+用户可以控制 Agent 被允许做什么，并在需要时中断执行。
+
+### Story 5.1: 权限模式配置
+
+作为一个用户，
+我想要控制 Agent 的权限级别，
+以便我可以防止意外的破坏性操作。
+
+**验收标准：**
+
+**假设** 传入了 `--mode bypassPermissions`
+**当** 创建 Agent
+**那么** 所有工具执行无需审批即可进行
+
+**假设** 传入了 `--mode default`（或未指定 --mode）
+**当** Agent 尝试执行危险工具（如带 rm 的 Bash）
+**那么** 提示用户批准或拒绝该操作
+
+**假设** 传入了 `--mode plan`
+**当** Agent 提出计划
+**那么** 用户必须在执行开始前批准
+
+**假设** 提供了无效的模式字符串
+**当** 传入 `--mode invalid`
+**那么** 错误信息列出有效模式并退出
+
+**SDK API：** `PermissionMode`, `AgentOptions.permissionMode`, `CanUseToolFn`
+**文件：** `ArgumentParser.swift`, `AgentFactory.swift`, `PermissionHandler.swift`
+
+### Story 5.2: 交互式权限提示
+
+作为一个用户，
+我想要在 Agent 请求权限时看到清晰的提示，
+以便我了解它即将做什么并能做出明智的决定。
+
+**验收标准：**
+
+**假设** Agent 请求执行危险工具
+**当** 权限回调触发
+**那么** 提示显示：工具名称、输入参数摘要和风险级别
+
+**假设** 权限提示已显示
+**当** 我输入 `y` 或 `yes`
+**那么** 工具执行继续
+
+**假设** 权限提示已显示
+**当** 我输入 `n` 或 `no`
+**那么** 工具执行被拒绝，Agent 收到通知
+
+**SDK API：** `CanUseToolFn`, `ToolContext`
+**文件：** `PermissionHandler.swift`, `OutputRenderer.swift`
+
+### Story 5.3: 优雅的中断处理
+
+作为一个用户，
+我想要在 Agent 响应过程中中断它而不丢失会话，
+以便我可以重定向或停止失控的任务。
+
+**验收标准：**
+
+**假设** Agent 正在流式传输响应
+**当** 我按下 Ctrl+C
+**那么** 通过 `agent.interrupt()` 中断当前 Agent 操作
+**并且** REPL 提示符重新出现
+
+**假设** Agent 正在等待权限提示
+**当** 我按下 Ctrl+C
+**那么** 操作被取消，REPL 继续
+
+**假设** 我在 1 秒内按了两次 Ctrl+C
+**当** 处于 REPL 模式
+**那么** CLI 立即退出
+
+**假设** 收到 SIGTERM 信号
+**当** CLI 正在运行
+**那么** 会话被保存，进程干净退出
+
+**SDK API：** `agent.interrupt()`, `agent.close()`
+**文件：** `REPLLoop.swift`, `CLI.swift`
+
+---
+
+## Epic 6: 高级功能
+
+用户可以使用钩子、专业工具、富文本输出、思考配置、技能和动态控制。
+
+### Story 6.1: 钩子系统集成
+
+作为一个用户，
+我想要在 Agent 生命周期事件上配置 Shell 钩子，
+以便我可以记录日志、审计或转换 Agent 的行为。
+
+**验收标准：**
+
+**假设** 存在钩子配置 JSON 文件
+**当** 我运行 `openagent --hooks ./hooks.json`
+**那么** 钩子通过 SDK 的 `createHookRegistry()` 注册
+
+**假设** 为 `beforeToolCall` 事件配置了钩子
+**当** Agent 调用工具
+**那么** 钩子脚本在工具运行之前执行
+
+**假设** 钩子脚本超时或出错
+**当** 执行时
+**那么** 记录警告但 Agent 操作继续
+
+**SDK API：** `createHookRegistry()`, `HookRegistry`, `HookDefinition`, `HookEvent`
+**文件：** `HookConfigLoader.swift`, `AgentFactory.swift`
+
+### Story 6.2: 专业工具与工具过滤
+
+作为一个用户，
+我想要加载专业工具并控制哪些工具可用，
+以便我可以根据任务定制 Agent 的能力。
+
+**验收标准：**
+
+**假设** 传入了 `--tools specialist`
+**当** 创建 Agent
+**那么** 加载 Worktree、Plan、Cron、TodoWrite、LSP、Config、RemoteTrigger、MCP Resource 工具
+
+**假设** 传入了 `--tool-deny "Bash,Write"`
+**当** Agent 创建其工具池
+**那么** Bash 和 Write 工具被排除
+
+**假设** 传入了 `--tool-allow "Read,Grep,Glob"`
+**当** Agent 创建其工具池
+**那么** 仅有 Read、Grep 和 Glob 工具可用
+
+**SDK API：** `getAllBaseTools(tier:)`, `filterTools()`, `assembleToolPool()`
+**文件：** `AgentFactory.swift`
+
+### Story 6.3: 动态 REPL 命令
+
+作为一个用户，
+我想要在对话过程中切换模型和权限模式，
+以便我可以无需重启即可调整 Agent 的行为。
+
+**验收标准：**
+
+**假设** 我处于 REPL 会话中
+**当** 我输入 `/model claude-opus-4-7`
+**那么** Agent 切换到指定模型
+
+**假设** 我处于 REPL 会话中
+**当** 我输入 `/mode plan`
+**那么** 权限模式切换到计划模式
+
+**假设** 我在 REPL 中输入 `/cost`
+**那么** 显示会话的累计 token 使用量和成本
+
+**假设** 我在 REPL 中输入 `/clear`
+**那么** 当前对话历史被清除，开始新会话
+
+**SDK API：** `agent.switchModel(_:)`, `agent.setPermissionMode(_:)`, `agent.getMessages()`
+**文件：** `REPLLoop.swift`
+
+### Story 6.4: 思考配置与安静模式
+
+作为一个用户，
+我想要启用扩展思考并控制输出详细程度，
+以便我可以获得更深层的推理或更干净的脚本输出。
+
+**验收标准：**
+
+**假设** 传入了 `--thinking 8192`
+**当** 创建 Agent
+**那么** `AgentOptions.thinking` 配置为 8192 预算 token
+
+**假设** 传入了 `--quiet`
+**当** Agent 处理查询
+**那么** 仅显示最终的助手文本（无工具调用、无系统消息）
+
+**假设** 思考功能已启用
+**当** Agent 使用扩展思考
+**那么** 思考输出以暗色/不同样式显示
+
+**SDK API：** `ThinkingConfig`, `AgentOptions.thinking`, `AgentOptions.maxThinkingTokens`
+**文件：** `ArgumentParser.swift`, `OutputRenderer+SDKMessage.swift`
+
+### Story 6.5: Markdown 终端渲染
+
+作为一个用户，
+我想要 Agent 的响应在终端中以基本 Markdown 格式渲染，
+以便代码块、标题和列表清晰可读。
+
+**验收标准：**
+
+**假设** Agent 以 Markdown 格式的文本响应
+**当** 在终端中渲染
+**那么** 代码块带有可视边框显示
+**并且** 标题加粗显示
+**并且** 列表正确缩进
+
+**假设** 检测到终端宽度
+**当** 渲染长行时
+**那么** 文本在终端宽度边界处换行
+
+**SDK API：** 无（仅终端渲染）
+**文件：** `OutputRenderer+SDKMessage.swift`, `ANSI.swift`
+
+---
+
+## Epic 7: 高级用户与自定义
+
+用户可以使用管道、JSON 输出、配置文件和其他高级功能进行脚本编写和自定义。
+
+### Story 7.1: 管道/标准输入模式
+
+作为一个用户，
+我想要将输入通过管道传入 CLI，
+以便我可以将其集成到 Shell 脚本和管道中。
+
+**验收标准：**
+
+**假设** 通过标准输入管道输入
+**当** 我运行 `echo "explain this" | openagent --stdin`
+**那么** CLI 从标准输入读取并处理输入
+
+**假设** 同时提供了标准输入和位置参数
+**当** CLI 启动
+**那么** 位置参数优先
+
+**SDK API：** `agent.prompt(_:)`
+**文件：** `CLI.swift`
+
+### Story 7.2: JSON 输出模式
+
+作为一个开发者，
+我想要从 CLI 获取结构化的 JSON 输出，
+以便我可以程序化地解析 Agent 的响应。
+
+**验收标准：**
+
+**假设** 传入了 `--output json`
+**当** Agent 完成查询
+**那么** 结果以 JSON 对象打印，包含 `text`、`toolCalls`、`cost` 和 `turns` 字段
+
+**假设** JSON 输出模式处于活动状态
+**当** 发生错误
+**那么** 错误以 JSON 格式打印到标准输出，格式为 `{"error": "..."}`
+
+**SDK API：** `QueryResult`, `SDKMessage`
+**文件：** `OutputRenderer.swift`
+
+### Story 7.3: 持久化配置文件
+
+作为一个用户，
+我想要将 CLI 配置保存在文件中，
+以便我不必每次都传入参数。
+
+**验收标准：**
+
+**假设** 配置文件存在于 `~/.openagent/config.json`
+**当** CLI 启动
+**那么** 配置文件中的设置作为默认值应用
+
+**假设** 配置文件和 CLI 参数同时指定了相同的设置
+**当** CLI 启动
+**那么** CLI 参数覆盖配置文件中的值
+
+**SDK API：** `AgentOptions`
+**文件：** `CLI.swift`, `ArgumentParser.swift`
+
+### Story 7.4: 多提供商支持
+
+作为一个用户，
+我想要使用非 Anthropic 的 LLM 提供商，
+以便我可以将 CLI 与 OpenAI 或其他兼容的 API 一起使用。
+
+**验收标准：**
+
+**假设** 传入了 `--provider openai --base-url https://api.openai.com/v1`
+**当** 创建 Agent
+**那么** 使用兼容 OpenAI 的客户端
+
+**假设** 传入了 `--provider anthropic`（或默认）
+**当** 创建 Agent
+**那么** 使用 Anthropic 客户端
+
+**SDK API：** `LLMProvider`, `AgentOptions.provider`, `AgentOptions.baseURL`
+**文件：** `AgentFactory.swift`
+
+### Story 7.5: 会话分叉
+
+作为一个高级用户，
+我想要从当前节点分叉对话，
+以便我可以探索替代方案而不丢失原始上下文。
+
+**验收标准：**
+
+**假设** 我处于带有对话历史的 REPL 会话中
+**当** 我输入 `/fork`
+**那么** 从当前对话状态创建一个新的分支会话
+
+**假设** 分叉完成
+**当** 我继续对话
+**那么** 新会话从此处开始拥有独立的后续历史
+
+**SDK API：** `AgentOptions.forkSession`
+**文件：** `REPLLoop.swift`, `SessionManager.swift`
+
+### Story 7.6: 动态 MCP 管理
+
+作为一个高级用户，
+我想要在会话中检查和重新连接 MCP 服务器，
+以便我可以排查连接问题而无需重启。
+
+**验收标准：**
+
+**假设** MCP 服务器已连接
+**当** 我输入 `/mcp status`
+**那么** 显示每个服务器的连接状态
+
+**假设** MCP 服务器断开连接
+**当** 我输入 `/mcp reconnect <name>`
+**那么** 服务器重新连接
+
+**假设** 提供了不存在的服务器名称
+**当** 我输入 `/mcp reconnect nonexistent`
+**那么** 错误信息显示 "Server not found"
+
+**SDK API：** `agent.mcpServerStatus()`, `agent.reconnectMcpServer()`
+**文件：** `REPLLoop.swift`
+
+### Story 7.7: 技能列表与自定义工具注册
+
+作为一个高级用户，
+我想要列出可用技能并通过配置注册自定义工具，
+以便我可以发现和扩展 Agent 的能力。
+
+**验收标准：**
+
+**假设** 技能已加载
+**当** 我在 REPL 中输入 `/skills`
+**那么** 列出可用技能及其名称和描述
+
+**假设** 配置文件指定了自定义工具
+**当** CLI 使用该配置启动
+**那么** 自定义工具被注册并可供 Agent 使用
+
+**SDK API：** `SkillRegistry`, `defineTool()`
+**文件：** `REPLLoop.swift`, `CLI.swift`
