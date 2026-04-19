@@ -29,11 +29,12 @@ jobs:
           XCTEST_PATH="$(find .build -name '*.xctest' -type d | head -1)"
           BINARY="${XCTEST_PATH}/Contents/MacOS/$(basename "$XCTEST_PATH" .xctest)"
           PROF_DATA=".build/debug/codecov/default.profdata"
+          # Only measure project source files, exclude SDK and dependencies
           set -- $(xcrun llvm-cov report "$BINARY" \
             -instr-profile="$PROF_DATA" \
-            -ignore-filename-regex='.build/|Tests/' \
+            -ignore-filename-regex='.build/|Tests/|open-agent-sdk-swift/' \
             | tail -1)
-          COVERAGE=$(printf "%.1f" $(echo "$4" | sed 's/%//'))
+          COVERAGE=$(printf "%.1f" $(echo "$10" | sed 's/%//'))
           echo "COVERAGE=$COVERAGE" >> $GITHUB_ENV
           echo "Coverage: ${COVERAGE}%"
       - name: Update coverage badge
