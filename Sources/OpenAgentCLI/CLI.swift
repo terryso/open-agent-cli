@@ -45,9 +45,12 @@ enum CLI {
             let stream = agent.stream(prompt)
             await renderer.renderStream(stream)
         } else {
-            // REPL mode -- REPL loop is Story 1.4's scope.
-            print("Agent created. REPL mode ready.")
-            _ = agent
+            // REPL mode: start interactive loop.
+            let reader = FileHandleInputReader()
+            let renderer = OutputRenderer()
+            let repl = REPLLoop(agent: agent, renderer: renderer, reader: reader)
+            await repl.start()
+            try? await agent.close()
         }
     }
 
