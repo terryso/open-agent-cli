@@ -34,7 +34,7 @@ jobs:
             -instr-profile="$PROF_DATA" \
             -ignore-filename-regex='.build/|Tests/|open-agent-sdk-swift/' \
             | tail -1)
-          COVERAGE=$(printf "%.1f" $(echo "$10" | sed 's/%//'))
+          COVERAGE=$(printf "%.1f" $(echo "${10}" | sed 's/%//'))
           echo "COVERAGE=$COVERAGE" >> $GITHUB_ENV
           echo "Coverage: ${COVERAGE}%"
       - name: Update coverage badge
