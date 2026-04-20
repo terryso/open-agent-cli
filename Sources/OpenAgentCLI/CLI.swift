@@ -105,6 +105,11 @@ enum CLI {
             let reader = FileHandleInputReader()
             let renderer = OutputRenderer()
 
+            // Show restore hint when auto-restore is active
+            if !args.noRestore && args.sessionId == nil {
+                renderer.output.write("[Restoring last session...]\n")
+            }
+
             // Extract tool names for /tools command display
             let toolNames = AgentFactory.computeToolPool(from: args, skillRegistry: skillRegistry).map { $0.name }
 

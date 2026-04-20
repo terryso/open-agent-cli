@@ -72,15 +72,14 @@ final class SessionSaveTests: XCTestCase {
     }
 
     func testCreateAgent_generatesUUID_whenNoSessionId() throws {
-        // AC#1: When no --session flag is provided, AgentFactory should generate a UUID sessionId.
-        // Verify by creating two agents without sessionId and checking they get different IDs.
-        // Since sessionId is not a public property on Agent, we verify behavior through
-        // the resolveSessionId helper.
-        let id1 = AgentFactory.resolveSessionId(from: makeArgs(sessionId: nil))
-        let id2 = AgentFactory.resolveSessionId(from: makeArgs(sessionId: nil))
+        // AC#1: When no --session flag is provided, AgentFactory should generate a UUID sessionId
+        // (or return nil for auto-restore mode when noRestore is false).
+        // Verify by using --no-restore to force UUID generation.
+        let id1 = AgentFactory.resolveSessionId(from: makeArgs(noRestore: true, sessionId: nil))
+        let id2 = AgentFactory.resolveSessionId(from: makeArgs(noRestore: true, sessionId: nil))
 
-        XCTAssertFalse(id1.isEmpty, "Generated sessionId should not be empty")
-        XCTAssertFalse(id2.isEmpty, "Generated sessionId should not be empty")
+        XCTAssertNotNil(id1, "Generated sessionId should not be nil with --no-restore")
+        XCTAssertNotNil(id2, "Generated sessionId should not be nil with --no-restore")
         XCTAssertNotEqual(id1, id2, "Two agents without --session should get different UUIDs")
     }
 
@@ -95,16 +94,18 @@ final class SessionSaveTests: XCTestCase {
     }
 
     func testResolveSessionId_generatesUUID_whenNil() {
-        // AC#1: When sessionId is nil, a UUID is generated.
-        let args = makeArgs(sessionId: nil)
+        // AC#1: When sessionId is nil and --no-restore is set, a UUID is generated.
+        // Without --no-restore, it returns nil for auto-restore mode (Story 3.3).
+        let args = makeArgs(noRestore: true, sessionId: nil)
         let resolved = AgentFactory.resolveSessionId(from: args)
 
+        XCTAssertNotNil(resolved, "With --no-restore, resolveSessionId should return a UUID")
         // UUID format check: should contain 4 dashes (8-4-4-4-12 pattern)
-        let dashCount = resolved.filter { $0 == "-" }.count
+        let dashCount = resolved!.filter { $0 == "-" }.count
         XCTAssertEqual(dashCount, 4,
-            "Generated sessionId should be UUID format with 4 dashes: \(resolved)")
-        XCTAssertEqual(resolved.count, 36,
-            "UUID string should be 36 characters (32 hex + 4 dashes): \(resolved)")
+            "Generated sessionId should be UUID format with 4 dashes: \(resolved!)")
+        XCTAssertEqual(resolved!.count, 36,
+            "UUID string should be 36 characters (32 hex + 4 dashes): \(resolved!)")
     }
 
     func testCreateAgent_sessionStoreEnabled_agentCreated() throws {
@@ -183,16 +184,17 @@ final class SessionSaveTests: XCTestCase {
     }
 
     func testResolveSessionId_noRestore_doesNotAffectSessionId() {
-        // AC#3: --no-restore should not affect sessionId generation.
+        // resolveSessionId always returns a UUID or explicit ID.
+        // Auto-restore logic (returning nil) is handled in createAgent, not resolveSessionId.
         let argsNoRestore = makeArgs(noRestore: true, sessionId: nil)
         let argsDefault = makeArgs(noRestore: false, sessionId: nil)
 
         let idNoRestore = AgentFactory.resolveSessionId(from: argsNoRestore)
         let idDefault = AgentFactory.resolveSessionId(from: argsDefault)
 
-        // Both should generate valid UUIDs
-        XCTAssertFalse(idNoRestore.isEmpty)
-        XCTAssertFalse(idDefault.isEmpty)
+        // Both generate UUIDs; auto-restore nil override is in createAgent
+        XCTAssertNotNil(idNoRestore, "With --no-restore, a UUID session ID should be generated")
+        XCTAssertNotNil(idDefault, "Default mode also generates UUID; createAgent overrides to nil for auto-restore")
     }
 
     func testCreateAgent_persistSession_alwaysTrue_withRestore() throws {

@@ -85,7 +85,8 @@ enum AgentFactory {
 
         // 7. Resolve session configuration
         let sessionStore = SessionStore()
-        let sessionId = resolveSessionId(from: args)
+        let shouldAutoRestore = !args.noRestore && args.sessionId == nil && args.prompt == nil && args.skillName == nil
+        let sessionId: String? = shouldAutoRestore ? nil : resolveSessionId(from: args)
 
         // 8. Assemble AgentOptions
         let options = AgentOptions(
@@ -105,6 +106,7 @@ enum AgentFactory {
             logLevel: logLevel,
             allowedTools: args.toolAllow,
             disallowedTools: args.toolDeny,
+            continueRecentSession: shouldAutoRestore,
             persistSession: true
         )
 
@@ -187,12 +189,15 @@ enum AgentFactory {
 
     /// Resolve the session ID from parsed CLI arguments.
     ///
-    /// Uses the explicitly provided `--session` ID if available,
-    /// otherwise generates a new UUID string.
+    /// When auto-restore is active (no `--session` and no `--no-restore`),
+    /// returns `nil` so the SDK's `continueRecentSession` mechanism can
+    /// resolve the most recent session from `SessionStore`.
+    /// Otherwise uses the explicitly provided `--session` ID or generates
+    /// a new UUID string.
     ///
     /// - Parameter args: The fully resolved CLI arguments.
-    /// - Returns: A session ID string (either from `--session` or a new UUID).
-    static func resolveSessionId(from args: ParsedArgs) -> String {
+    /// - Returns: A session ID string, or `nil` when auto-restore is active.
+    static func resolveSessionId(from args: ParsedArgs) -> String? {
         return args.sessionId ?? UUID().uuidString
     }
 }

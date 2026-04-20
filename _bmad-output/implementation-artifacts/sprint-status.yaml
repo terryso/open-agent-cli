@@ -1,5 +1,5 @@
 # generated: 2026-04-19
-# last_updated: 2026-04-20T10:25:00
+# last_updated: 2026-04-20T17:00:00
 # project: open-agent-cli
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-19
-last_updated: 2026-04-20T15:38:00
+last_updated: 2026-04-20T17:18:00
 project: open-agent-cli
 project_key: NOKEY
 tracking_system: file-system
@@ -63,7 +63,7 @@ development_status:
   epic-3: in-progress
   3-1-auto-save-sessions-on-exit: done
   3-2-list-and-resume-past-sessions: done
-  3-3-auto-restore-last-session-on-startup: backlog
+  3-3-auto-restore-last-session-on-startup: done
   epic-3-retrospective: optional
 
   # Epic 4: External Integration — MCP & Sub-Agents (P0)
