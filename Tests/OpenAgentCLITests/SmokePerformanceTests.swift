@@ -61,7 +61,7 @@ final class SmokePerformanceTests: XCTestCase {
 
     /// Creates a test Agent with a dummy API key.
     private func makeTestAgent() throws -> Agent {
-        try AgentFactory.createAgent(from: makeTestArgs())
+        try AgentFactory.createAgent(from: makeTestArgs()).0
     }
 
     // MARK: - AC#1: Cold start responsiveness (proxy measurement via --help/--version)

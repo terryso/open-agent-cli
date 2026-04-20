@@ -40,7 +40,7 @@ enum CLI {
         let skillRegistry = AgentFactory.createSkillRegistry(from: args)
 
         // Dispatch based on mode
-        let agent = createAgentOrExit(from: args)
+        let (agent, sessionStore) = createAgentOrExit(from: args)
 
         // Handle --skill auto-invocation
         if let skillName = args.skillName {
@@ -69,7 +69,7 @@ enum CLI {
                 let reader = FileHandleInputReader()
                 let renderer = OutputRenderer()
                 let toolNames = AgentFactory.computeToolPool(from: args, skillRegistry: skillRegistry).map { $0.name }
-                let repl = REPLLoop(agent: agent, renderer: renderer, reader: reader, toolNames: toolNames, skillRegistry: skillRegistry)
+                let repl = REPLLoop(agent: agent, renderer: renderer, reader: reader, toolNames: toolNames, skillRegistry: skillRegistry, sessionStore: sessionStore, parsedArgs: args)
                 await repl.start()
                 await closeAgentSafely(agent)
                 return
@@ -108,14 +108,14 @@ enum CLI {
             // Extract tool names for /tools command display
             let toolNames = AgentFactory.computeToolPool(from: args, skillRegistry: skillRegistry).map { $0.name }
 
-            let repl = REPLLoop(agent: agent, renderer: renderer, reader: reader, toolNames: toolNames, skillRegistry: skillRegistry)
+            let repl = REPLLoop(agent: agent, renderer: renderer, reader: reader, toolNames: toolNames, skillRegistry: skillRegistry, sessionStore: sessionStore, parsedArgs: args)
             await repl.start()
             await closeAgentSafely(agent)
         }
     }
 
     /// Create an Agent from parsed args, or print error to stderr and exit.
-    private static func createAgentOrExit(from args: ParsedArgs) -> Agent {
+    private static func createAgentOrExit(from args: ParsedArgs) -> (Agent, SessionStore) {
         do {
             return try AgentFactory.createAgent(from: args)
         } catch {

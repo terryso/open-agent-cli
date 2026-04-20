@@ -141,7 +141,7 @@ final class ToolLoadingTests: XCTestCase {
         // AC#1: Default ParsedArgs.tools="core" should result in an agent with core tools
         let args = makeArgs(tools: "core")
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
 
         // Agent should be created successfully with tools loaded
         XCTAssertNotNil(agent, "Agent with core tools should be created (AC#1)")
@@ -207,7 +207,7 @@ final class ToolLoadingTests: XCTestCase {
         // AC#2: Agent creation with --tools advanced should succeed
         let args = makeArgs(tools: "advanced")
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
 
         XCTAssertNotNil(agent, "Agent with advanced tools should be created (AC#2)")
     }
@@ -218,7 +218,7 @@ final class ToolLoadingTests: XCTestCase {
         // AC#3: Agent creation with --tools all should succeed
         let args = makeArgs(tools: "all")
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
 
         XCTAssertNotNil(agent, "Agent with all tools should be created (AC#3)")
     }

@@ -572,6 +572,6 @@ final class REPLLoopTests: XCTestCase {
             errorMessage: nil,
             helpMessage: nil
         )
-        return try AgentFactory.createAgent(from: args)
+        return try AgentFactory.createAgent(from: args).0
     }
 }

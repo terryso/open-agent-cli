@@ -74,7 +74,7 @@ final class AgentFactoryTests: XCTestCase {
             model: "custom-model"
         )
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
 
         XCTAssertNotNil(agent, "createAgent with full params should return a non-nil Agent")
     }
@@ -86,7 +86,7 @@ final class AgentFactoryTests: XCTestCase {
             model: "custom-model"
         )
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
 
         XCTAssertEqual(agent.model, "custom-model",
             "Agent should use the model specified in ParsedArgs")
@@ -102,7 +102,7 @@ final class AgentFactoryTests: XCTestCase {
         // Verify the agent is created without errors when baseURL is provided.
         // The Agent doesn't expose baseURL as a public property, so we verify
         // that creation succeeds (it would throw if baseURL were rejected).
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent creation with custom baseURL should succeed")
     }
 
@@ -116,7 +116,7 @@ final class AgentFactoryTests: XCTestCase {
             model: "glm-5.1"  // This is the ParsedArgs default
         )
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
 
         XCTAssertEqual(agent.model, "glm-5.1",
             "Agent should use 'glm-5.1' as default model when --model not specified")
@@ -130,7 +130,7 @@ final class AgentFactoryTests: XCTestCase {
             model: "glm-5.1"
         )
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
 
         XCTAssertEqual(agent.model, "glm-5.1",
             "Agent model should be glm-5.1 when explicitly passed")
@@ -147,7 +147,7 @@ final class AgentFactoryTests: XCTestCase {
             model: "glm-5.1"
         )
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent creation with API key should succeed")
     }
 
@@ -162,7 +162,7 @@ final class AgentFactoryTests: XCTestCase {
             "ArgumentParser should resolve OPENAGENT_API_KEY env var")
 
         // Verify createAgent succeeds with the resolved key
-        let agent = try AgentFactory.createAgent(from: parsedArgs)
+        let agent = try AgentFactory.createAgent(from: parsedArgs).0
         XCTAssertNotNil(agent, "Agent creation with env var resolved API key should succeed")
     }
 
@@ -232,7 +232,7 @@ final class AgentFactoryTests: XCTestCase {
             maxTurns: 5
         )
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
 
         XCTAssertEqual(agent.maxTurns, 5,
             "Agent should use maxTurns=5 from ParsedArgs")
@@ -246,7 +246,7 @@ final class AgentFactoryTests: XCTestCase {
 
         // maxBudgetUsd is not exposed on Agent as a public property,
         // but the creation should succeed without errors.
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent creation with maxBudgetUsd should succeed")
     }
 
@@ -256,7 +256,7 @@ final class AgentFactoryTests: XCTestCase {
             maxTurns: 10  // ParsedArgs default
         )
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
 
         XCTAssertEqual(agent.maxTurns, 10,
             "Default maxTurns should be 10")
@@ -297,7 +297,7 @@ final class AgentFactoryTests: XCTestCase {
             provider: "anthropic"
         )
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent with provider 'anthropic' should be created")
     }
 
@@ -308,7 +308,7 @@ final class AgentFactoryTests: XCTestCase {
             provider: "openai"
         )
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent with provider 'openai' should be created")
     }
 
@@ -334,7 +334,7 @@ final class AgentFactoryTests: XCTestCase {
         )
 
         // Should succeed with default provider (anthropic)
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent with no provider should default to anthropic")
     }
 
@@ -342,25 +342,25 @@ final class AgentFactoryTests: XCTestCase {
 
     func testCreateAgent_modeDefault_succeeds() throws {
         let args = makeArgs(apiKey: "sk-test", mode: "default")
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent)
     }
 
     func testCreateAgent_modeBypassPermissions_succeeds() throws {
         let args = makeArgs(apiKey: "sk-test", mode: "bypassPermissions")
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent)
     }
 
     func testCreateAgent_modePlan_succeeds() throws {
         let args = makeArgs(apiKey: "sk-test", mode: "plan")
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent)
     }
 
     func testCreateAgent_modeAuto_succeeds() throws {
         let args = makeArgs(apiKey: "sk-test", mode: "auto")
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent)
     }
 
@@ -381,7 +381,7 @@ final class AgentFactoryTests: XCTestCase {
             thinking: 8192
         )
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent with thinking config should be created")
     }
 
@@ -391,7 +391,7 @@ final class AgentFactoryTests: XCTestCase {
             thinking: nil
         )
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent without thinking config should be created")
     }
 
@@ -403,7 +403,7 @@ final class AgentFactoryTests: XCTestCase {
             toolAllow: ["Bash", "Read", "Write"]
         )
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent with allowedTools should be created")
     }
 
@@ -413,7 +413,7 @@ final class AgentFactoryTests: XCTestCase {
             toolDeny: ["Edit", "Delete"]
         )
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent with disallowedTools should be created")
     }
 
@@ -424,7 +424,7 @@ final class AgentFactoryTests: XCTestCase {
             toolDeny: ["Write"]
         )
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent with both allowedTools and disallowedTools should be created")
     }
 
@@ -436,7 +436,7 @@ final class AgentFactoryTests: XCTestCase {
             systemPrompt: "You are a helpful coding assistant."
         )
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         XCTAssertEqual(agent.systemPrompt, "You are a helpful coding assistant.",
             "Agent should use the system prompt from ParsedArgs")
     }
@@ -447,7 +447,7 @@ final class AgentFactoryTests: XCTestCase {
             systemPrompt: nil
         )
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         XCTAssertNil(agent.systemPrompt,
             "Agent systemPrompt should be nil when not provided")
     }
@@ -457,7 +457,7 @@ final class AgentFactoryTests: XCTestCase {
     func testCreateAgent_setsCwd() throws {
         let args = makeArgs(apiKey: "sk-test")
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         // Agent doesn't expose cwd as a public property, but creation should succeed
         // with cwd set to FileManager.default.currentDirectoryPath
         XCTAssertNotNil(agent)
@@ -479,7 +479,7 @@ final class AgentFactoryTests: XCTestCase {
         XCTAssertEqual(parsedArgs.maxTurns, 3)
         XCTAssertFalse(parsedArgs.shouldExit)
 
-        let agent = try AgentFactory.createAgent(from: parsedArgs)
+        let agent = try AgentFactory.createAgent(from: parsedArgs).0
         XCTAssertEqual(agent.model, "glm-5.1")
         XCTAssertEqual(agent.maxTurns, 3)
     }
@@ -508,7 +508,7 @@ final class AgentFactoryTests: XCTestCase {
             "Parser should resolve OPENAGENT_API_KEY into ParsedArgs.apiKey")
 
         // Factory should succeed with the resolved key
-        let agent = try AgentFactory.createAgent(from: parsedArgs)
+        let agent = try AgentFactory.createAgent(from: parsedArgs).0
         XCTAssertNotNil(agent, "Agent should be created with env var resolved API key")
     }
 
@@ -546,7 +546,7 @@ final class AgentFactoryTests: XCTestCase {
             helpMessage: nil
         )
 
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
 
         XCTAssertEqual(agent.model, "glm-5.1")
         XCTAssertEqual(agent.maxTurns, 5)

@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-19
-last_updated: 2026-04-20T21:50:00
+last_updated: 2026-04-20T15:38:00
 project: open-agent-cli
 project_key: NOKEY
 tracking_system: file-system
@@ -62,7 +62,7 @@ development_status:
   # Epic 3: Session Continuity (P0)
   epic-3: in-progress
   3-1-auto-save-sessions-on-exit: done
-  3-2-list-and-resume-past-sessions: backlog
+  3-2-list-and-resume-past-sessions: done
   3-3-auto-restore-last-session-on-startup: backlog
   epic-3-retrospective: optional
 

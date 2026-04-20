@@ -110,7 +110,7 @@ final class SkillLoadingTests: XCTestCase {
             errorMessage: nil,
             helpMessage: nil
         )
-        return try AgentFactory.createAgent(from: args)
+        return try AgentFactory.createAgent(from: args).0
     }
 
     /// Creates a temporary directory with a valid SKILL.md for testing.
@@ -208,7 +208,7 @@ final class SkillLoadingTests: XCTestCase {
         let args = makeArgs(skillDir: skillDir.path)
 
         // Should not throw -- skill loading is additive
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent,
             "Agent should be created successfully with skillDir (AC#1)")
     }
@@ -532,7 +532,7 @@ final class SkillLoadingTests: XCTestCase {
     func testCreateAgent_withoutSkillArgs_behaviorUnchanged() throws {
         // Regression: Agent creation without skill args should behave exactly as before
         let args = makeArgs()
-        let agent = try AgentFactory.createAgent(from: args)
+        let agent = try AgentFactory.createAgent(from: args).0
 
         XCTAssertNotNil(agent, "Agent creation without skill args should still work (regression)")
         XCTAssertEqual(agent.model, "glm-5.1", "Model should still be set correctly (regression)")

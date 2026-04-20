@@ -57,7 +57,7 @@ final class CLISingleShotTests: XCTestCase {
             errorMessage: nil,
             helpMessage: nil
         )
-        return try AgentFactory.createAgent(from: args)
+        return try AgentFactory.createAgent(from: args).0
     }
 
     // MARK: - AC#1: CLI accepts positional prompt for single-shot mode
