@@ -74,30 +74,32 @@ extension OutputRenderer {
         output.write("\(line)\n")
     }
 
-    // MARK: - AC#6: toolUse -- basic cyan tool call line
+    // MARK: - AC#6: toolUse -- cyan tool call line with args summary
 
-    /// Render a tool invocation with cyan styling.
+    /// Render a tool invocation with cyan styling and argument summary.
     ///
-    /// This is a basic implementation. Story 2.2 will enhance this with
-    /// argument summaries, execution timing, and truncation.
+    /// Parses the `input` JSON string to extract key arguments and display
+    /// a concise summary. Falls back gracefully for empty or invalid JSON.
     func renderToolUse(_ data: SDKMessage.ToolUseData) {
-        let line = ANSI.cyan("> \(data.toolName)")
+        let summary = summarizeInput(data.input)
+        let line = summary.isEmpty
+            ? ANSI.cyan("> \(data.toolName)")
+            : ANSI.cyan("> \(data.toolName)(\(summary))")
         output.write("\(line)\n")
     }
 
-    // MARK: - AC#6: toolResult -- result text, red on error
+    // MARK: - AC#6: toolResult -- result text, 500-char truncation, red on error
 
     /// Render a tool execution result.
     ///
-    /// Successful results display content in default color; error results use red.
-    /// Story 2.2 will enhance this with truncation and formatting.
+    /// Successful results are truncated at 500 characters with a "..." marker.
+    /// Error results display in red without truncation (errors are important).
     func renderToolResult(_ data: SDKMessage.ToolResultData) {
         if data.isError {
             output.write("  \(ANSI.red(data.content))\n")
         } else {
-            // Truncate long results to a reasonable length for basic display.
-            let display = data.content.count > 200
-                ? String(data.content.prefix(200)) + "..."
+            let display = data.content.count > 500
+                ? String(data.content.prefix(500)) + "..."
                 : data.content
             output.write("  \(display)\n")
         }
@@ -136,6 +138,42 @@ extension OutputRenderer {
     }
 
     // MARK: - Private Helpers
+
+    /// Extract a concise argument summary from a JSON input string.
+    ///
+    /// Strategy:
+    /// - Parse JSON into `[String: Any]`
+    /// - Show all keys sorted alphabetically (rely on summary truncation for length control)
+    /// - Truncate each value to 80 characters
+    /// - Format as "key1: val1, key2: val2"
+    /// - Truncate total summary to 200 characters with "..."
+    /// - Return empty string for empty JSON `{}` or parse failures
+    private func summarizeInput(_ input: String) -> String {
+        guard let data = input.data(using: .utf8),
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              !dict.isEmpty else {
+            return ""
+        }
+
+        let maxValueLength = 80
+        let maxSummaryLength = 200
+
+        var pairs: [String] = []
+        let sortedKeys = dict.keys.sorted()
+        for key in sortedKeys {
+            let valueStr = String(describing: dict[key] ?? "")
+            let truncated = valueStr.count > maxValueLength
+                ? String(valueStr.prefix(maxValueLength)) + "..."
+                : valueStr
+            pairs.append("\(key): \(truncated)")
+        }
+
+        let summary = pairs.joined(separator: ", ")
+        if summary.count > maxSummaryLength {
+            return String(summary.prefix(maxSummaryLength)) + "..."
+        }
+        return summary
+    }
 
     /// Format the summary portion of a result line.
     ///

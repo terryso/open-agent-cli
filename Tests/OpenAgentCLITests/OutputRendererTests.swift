@@ -533,4 +533,356 @@ final class OutputRendererTests: XCTestCase {
 
         // Default init produces a working renderer — no crash means success
     }
+
+    // MARK: - ATDD Red Phase: Story 2.2 Tool Call Visibility
+    //
+    // These tests define the EXPECTED behavior of enhanced tool call rendering.
+    // They will FAIL until renderToolUse and renderToolResult are enhanced
+    // with argument summaries, 500-char truncation, and improved formatting.
+    //
+    // Acceptance Criteria Coverage:
+    //   AC#1: toolUse shows tool name + input args summary in cyan
+    //   AC#2: toolResult shows result text (truncated at 500 chars); errors in red
+    //   AC#3: Multiple sequential tool calls render in order
+
+    // MARK: - AC#1: renderToolUse shows tool name and args summary (P0)
+
+    func testRenderToolUse_showsArgsSummary() throws {
+        let (renderer, mock) = makeRenderer()
+        let data = SDKMessage.ToolUseData(
+            toolName: "Bash",
+            toolUseId: "tool-001",
+            input: "{\"command\": \"ls -la\"}"
+        )
+
+        renderer.render(.toolUse(data))
+
+        // AC#1: Should show tool name with parsed args summary
+        let output = mock.output
+        XCTAssertTrue(output.contains("Bash"),
+            "toolUse should show tool name, got: \(output)")
+        XCTAssertTrue(output.contains("command"),
+            "toolUse should show arg key 'command', got: \(output)")
+        XCTAssertTrue(output.contains("ls -la"),
+            "toolUse should show arg value 'ls -la', got: \(output)")
+        XCTAssertTrue(output.contains("\u{001B}[36m"),
+            "toolUse should use cyan ANSI, got: \(output.debugDescription)")
+    }
+
+    func testRenderToolUse_multipleArgs_showsAll() throws {
+        let (renderer, mock) = makeRenderer()
+        let data = SDKMessage.ToolUseData(
+            toolName: "Write",
+            toolUseId: "tool-002",
+            input: "{\"file_path\": \"/tmp/output.txt\", \"content\": \"hello world\"}"
+        )
+
+        renderer.render(.toolUse(data))
+
+        // AC#1: Should show multiple arg key-value pairs
+        let output = mock.output
+        XCTAssertTrue(output.contains("Write"),
+            "toolUse should show tool name 'Write', got: \(output)")
+        XCTAssertTrue(output.contains("file_path"),
+            "toolUse should show first arg key 'file_path', got: \(output)")
+        XCTAssertTrue(output.contains("/tmp/output.txt"),
+            "toolUse should show first arg value, got: \(output)")
+    }
+
+    func testRenderToolUse_emptyInput_showsToolNameOnly() throws {
+        let (renderer, mock) = makeRenderer()
+        let data = SDKMessage.ToolUseData(
+            toolName: "Read",
+            toolUseId: "tool-003",
+            input: "{}"
+        )
+
+        renderer.render(.toolUse(data))
+
+        // AC#1: Empty JSON input should show tool name without empty parens
+        let output = mock.output
+        XCTAssertTrue(output.contains("Read"),
+            "toolUse should show tool name 'Read', got: \(output)")
+        // Should NOT contain empty parentheses like "Read()"
+        XCTAssertFalse(output.contains("Read()"),
+            "toolUse with empty input should not show empty parentheses, got: \(output)")
+        XCTAssertTrue(output.contains("\u{001B}[36m"),
+            "toolUse should use cyan ANSI even with empty input, got: \(output.debugDescription)")
+    }
+
+    func testRenderToolUse_invalidJSON_showsFallback() throws {
+        let (renderer, mock) = makeRenderer()
+        let data = SDKMessage.ToolUseData(
+            toolName: "Grep",
+            toolUseId: "tool-004",
+            input: "not valid json {{{"
+        )
+
+        renderer.render(.toolUse(data))
+
+        // AC#1: Invalid JSON should show tool name and fall back gracefully
+        let output = mock.output
+        XCTAssertTrue(output.contains("Grep"),
+            "toolUse should show tool name even with invalid JSON, got: \(output)")
+        XCTAssertTrue(output.contains("\u{001B}[36m"),
+            "toolUse should use cyan ANSI even with invalid JSON, got: \(output.debugDescription)")
+    }
+
+    func testRenderToolUse_longArgValue_truncates() throws {
+        let (renderer, mock) = makeRenderer()
+        let longValue = String(repeating: "x", count: 200)
+        let data = SDKMessage.ToolUseData(
+            toolName: "Write",
+            toolUseId: "tool-005",
+            input: "{\"content\": \"\(longValue)\"}"
+        )
+
+        renderer.render(.toolUse(data))
+
+        // AC#1: Long arg values should be truncated (each value truncated to ~80 chars)
+        let output = mock.output
+        XCTAssertTrue(output.contains("Write"),
+            "toolUse should show tool name, got: \(output)")
+        // The full 200-char value should NOT appear in output
+        XCTAssertFalse(output.contains(longValue),
+            "toolUse should truncate long arg values, got output of length: \(output.count)")
+    }
+
+    func testRenderToolUse_manyArgs_showsFirstFew() throws {
+        let (renderer, mock) = makeRenderer()
+        let data = SDKMessage.ToolUseData(
+            toolName: "Grep",
+            toolUseId: "tool-006",
+            input: "{\"pattern\": \"func.*render\", \"path\": \"/project\", \"type\": \"swift\", \"extra\": \"value\", \"another\": \"field\"}"
+        )
+
+        renderer.render(.toolUse(data))
+
+        // AC#1: Should show args keys
+        let output = mock.output
+        XCTAssertTrue(output.contains("pattern"),
+            "toolUse should show arg key 'pattern', got: \(output)")
+    }
+
+    func testRenderToolUse_nonStringJsonValues_displaysGracefully() throws {
+        let (renderer, mock) = makeRenderer()
+        // JSON with non-string values: number, boolean, null
+        let data = SDKMessage.ToolUseData(
+            toolName: "Config",
+            toolUseId: "tool-007",
+            input: "{\"count\": 42, \"verbose\": true, \"name\": \"test\"}"
+        )
+
+        renderer.render(.toolUse(data))
+
+        // AC#1: Non-string values should be displayed via String(describing:)
+        // without crashing or producing empty output
+        let output = mock.output
+        XCTAssertTrue(output.contains("Config"),
+            "toolUse should show tool name, got: \(output)")
+        XCTAssertTrue(output.contains("count"),
+            "toolUse should show numeric arg key 'count', got: \(output)")
+        XCTAssertTrue(output.contains("name"),
+            "toolUse should show string arg key 'name', got: \(output)")
+        // Verify the numeric and boolean values are rendered
+        XCTAssertTrue(output.contains("42"),
+            "toolUse should show numeric value 42, got: \(output)")
+    }
+
+    // MARK: - AC#2: renderToolResult with 500-char truncation (P0)
+
+    func testRenderToolResult_success_underLimit_noTruncation() throws {
+        let (renderer, mock) = makeRenderer()
+        let shortContent = "file1.txt\nfile2.txt\nfile3.txt"
+        let data = SDKMessage.ToolResultData(
+            toolUseId: "tool-010",
+            content: shortContent,
+            isError: false
+        )
+
+        renderer.render(.toolResult(data))
+
+        // AC#2: Short results (<=500 chars) should not be truncated
+        let output = mock.output
+        XCTAssertTrue(output.contains("file1.txt"),
+            "toolResult should show full content for short results, got: \(output)")
+        XCTAssertFalse(output.contains("..."),
+            "Short result should not contain truncation marker, got: \(output)")
+    }
+
+    func testRenderToolResult_success_overLimit_truncates() throws {
+        let (renderer, mock) = makeRenderer()
+        let longContent = String(repeating: "a", count: 600)
+        let data = SDKMessage.ToolResultData(
+            toolUseId: "tool-011",
+            content: longContent,
+            isError: false
+        )
+
+        renderer.render(.toolResult(data))
+
+        // AC#2: Results >500 chars should be truncated
+        let output = mock.output
+        XCTAssertTrue(output.contains("..."),
+            "toolResult should contain truncation marker for long results, got output length: \(output.count)")
+        // The output should NOT contain the full 600-char content
+        XCTAssertFalse(output.contains(longContent),
+            "toolResult should truncate content over 500 chars")
+        // Verify the truncated content is around 500 chars (plus ANSI, prefix, etc.)
+        // The content portion should be at most ~500 chars
+        let contentWithoutFormatting = output
+            .replacingOccurrences(of: "...", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertTrue(contentWithoutFormatting.count < longContent.count,
+            "Truncated output should be shorter than original, got: \(contentWithoutFormatting.count) vs \(longContent.count)")
+    }
+
+    func testRenderToolResult_success_exactly500Chars_noTruncation() throws {
+        let (renderer, mock) = makeRenderer()
+        let exactContent = String(repeating: "b", count: 500)
+        let data = SDKMessage.ToolResultData(
+            toolUseId: "tool-012",
+            content: exactContent,
+            isError: false
+        )
+
+        renderer.render(.toolResult(data))
+
+        // AC#2: Exactly 500 chars should NOT be truncated (cutoff is >500)
+        let output = mock.output
+        XCTAssertFalse(output.contains("..."),
+            "toolResult with exactly 500 chars should not be truncated, got: \(output)")
+    }
+
+    func testRenderToolResult_error_showsRed_noTruncation() throws {
+        let (renderer, mock) = makeRenderer()
+        let errorContent = "Error: permission denied. The file could not be accessed because of insufficient permissions. Please check your access rights and try again."
+        let data = SDKMessage.ToolResultData(
+            toolUseId: "tool-013",
+            content: errorContent,
+            isError: true
+        )
+
+        renderer.render(.toolResult(data))
+
+        // AC#2: Error results should display in red without truncation
+        let output = mock.output
+        XCTAssertTrue(output.contains("\u{001B}[31m"),
+            "Error toolResult should render with red ANSI, got: \(output.debugDescription)")
+        XCTAssertTrue(output.contains("permission denied"),
+            "Error toolResult should show full error content, got: \(output)")
+        XCTAssertFalse(output.contains("..."),
+            "Error toolResult should not be truncated, got: \(output)")
+    }
+
+    func testRenderToolResult_error_longContent_noTruncation() throws {
+        let (renderer, mock) = makeRenderer()
+        let longError = "Critical failure: " + String(repeating: "e", count: 600)
+        let data = SDKMessage.ToolResultData(
+            toolUseId: "tool-014",
+            content: longError,
+            isError: true
+        )
+
+        renderer.render(.toolResult(data))
+
+        // AC#2: Even long error content should NOT be truncated
+        let output = mock.output
+        XCTAssertTrue(output.contains("\u{001B}[31m"),
+            "Long error toolResult should render with red ANSI, got: \(output.debugDescription)")
+        XCTAssertFalse(output.contains("..."),
+            "Long error toolResult should not be truncated, got: \(output)")
+    }
+
+    // MARK: - AC#3: Sequential tool calls render in order (P0)
+
+    func testRenderMultipleToolCalls_sequential() throws {
+        let (renderer, mock) = makeRenderer()
+
+        // Simulate: toolUse(Bash) -> toolResult(Bash) -> toolUse(Read) -> toolResult(Read)
+        renderer.render(.toolUse(SDKMessage.ToolUseData(
+            toolName: "Bash",
+            toolUseId: "tool-020",
+            input: "{\"command\": \"ls\"}"
+        )))
+        renderer.render(.toolResult(SDKMessage.ToolResultData(
+            toolUseId: "tool-020",
+            content: "file1.txt",
+            isError: false
+        )))
+        renderer.render(.toolUse(SDKMessage.ToolUseData(
+            toolName: "Read",
+            toolUseId: "tool-021",
+            input: "{\"file_path\": \"/tmp/file1.txt\"}"
+        )))
+        renderer.render(.toolResult(SDKMessage.ToolResultData(
+            toolUseId: "tool-021",
+            content: "Hello World",
+            isError: false
+        )))
+
+        // AC#3: All four messages should appear in sequential order
+        let output = mock.output
+
+        // Verify all tool names appear
+        XCTAssertTrue(output.contains("Bash"),
+            "Sequential output should contain 'Bash', got: \(output)")
+        XCTAssertTrue(output.contains("Read"),
+            "Sequential output should contain 'Read', got: \(output)")
+
+        // Verify results appear
+        XCTAssertTrue(output.contains("file1.txt"),
+            "Sequential output should contain first tool result, got: \(output)")
+        XCTAssertTrue(output.contains("Hello World"),
+            "Sequential output should contain second tool result, got: \(output)")
+
+        // Verify order: Bash should appear before Read
+        let bashRange = output.range(of: "Bash")
+        let readRange = output.range(of: "Read")
+        if let bashRange = bashRange, let readRange = readRange {
+            XCTAssertTrue(bashRange.lowerBound < readRange.lowerBound,
+                "Bash tool call should appear before Read in sequential output")
+        }
+    }
+
+    func testRenderMultipleToolCalls_threeInSequence() throws {
+        let (renderer, mock) = makeRenderer()
+
+        // Three sequential tool calls
+        renderer.render(.toolUse(SDKMessage.ToolUseData(
+            toolName: "Glob",
+            toolUseId: "tool-030",
+            input: "{\"pattern\": \"**/*.swift\"}"
+        )))
+        renderer.render(.toolUse(SDKMessage.ToolUseData(
+            toolName: "Grep",
+            toolUseId: "tool-031",
+            input: "{\"pattern\": \"func\", \"type\": \"swift\"}"
+        )))
+        renderer.render(.toolUse(SDKMessage.ToolUseData(
+            toolName: "Bash",
+            toolUseId: "tool-032",
+            input: "{\"command\": \"swift build\"}"
+        )))
+
+        // AC#3: Each tool call should render in order
+        let output = mock.output
+        XCTAssertTrue(output.contains("Glob"),
+            "Should contain Glob tool call, got: \(output)")
+        XCTAssertTrue(output.contains("Grep"),
+            "Should contain Grep tool call, got: \(output)")
+        XCTAssertTrue(output.contains("Bash"),
+            "Should contain Bash tool call, got: \(output)")
+
+        // Verify ordering: Glob < Grep < Bash
+        let globRange = output.range(of: "Glob")
+        let grepRange = output.range(of: "Grep")
+        let bashRange = output.range(of: "Bash")
+        if let globRange = globRange, let grepRange = grepRange, let bashRange = bashRange {
+            XCTAssertTrue(globRange.lowerBound < grepRange.lowerBound,
+                "Glob should appear before Grep")
+            XCTAssertTrue(grepRange.lowerBound < bashRange.lowerBound,
+                "Grep should appear before Bash")
+        }
+    }
 }

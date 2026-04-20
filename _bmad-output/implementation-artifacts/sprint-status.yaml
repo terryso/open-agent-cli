@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-19
-last_updated: 2026-04-20T10:15:00
+last_updated: 2026-04-20T11:41:00
 project: open-agent-cli
 project_key: NOKEY
 tracking_system: file-system
@@ -55,7 +55,7 @@ development_status:
   # Epic 2: Agent with Tools (P0)
   epic-2: in-progress
   2-1-core-tool-loading-and-display: done
-  2-2-tool-call-visibility: backlog
+  2-2-tool-call-visibility: done
   2-3-skills-loading-and-invocation: backlog
   epic-2-retrospective: optional
 
