@@ -82,13 +82,15 @@ struct OutputRenderer: OutputRendering {
             renderToolUse(data)
         case .toolResult(let data):
             renderToolResult(data)
+        case .taskStarted(let data):
+            renderTaskStarted(data)
+        case .taskProgress(let data):
+            renderTaskProgress(data)
         case .userMessage,
              .toolProgress,
              .hookStarted,
              .hookProgress,
              .hookResponse,
-             .taskStarted,
-             .taskProgress,
              .authStatus,
              .filesPersisted,
              .localCommandOutput,

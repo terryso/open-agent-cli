@@ -885,4 +885,163 @@ final class OutputRendererTests: XCTestCase {
                 "Grep should appear before Bash")
         }
     }
+
+    // MARK: - ATDD Red Phase: Story 4.2 Sub-Agent Progress Rendering
+    //
+    // These tests define the EXPECTED behavior of taskStarted and taskProgress rendering.
+    // They will FAIL until renderTaskStarted and renderTaskProgress are implemented
+    // in OutputRenderer+SDKMessage.swift (TDD red phase).
+    //
+    // Acceptance Criteria Coverage:
+    //   AC#2: Sub-agent output visible with indented prefix
+    //   AC#5: Sub-agent progress shown with indented [sub-agent] prefix
+
+    // MARK: - AC#2: taskStarted renders with indented [sub-agent] prefix (P0)
+
+    func testRenderTaskStarted_showsSubAgentPrefix() throws {
+        let (renderer, mock) = makeRenderer()
+        let data = SDKMessage.TaskStartedData(
+            taskId: "task-001",
+            taskType: "subagent",
+            description: "Analyze codebase structure"
+        )
+
+        renderer.render(.taskStarted(data))
+
+        // AC#2: taskStarted should render with [sub-agent] prefix
+        let output = mock.output
+        XCTAssertTrue(output.contains("[sub-agent]"),
+            "taskStarted should contain '[sub-agent]' prefix, got: \(output)")
+        XCTAssertTrue(output.contains("Analyze codebase structure"),
+            "taskStarted should show task description, got: \(output)")
+    }
+
+    func testRenderTaskStarted_usesYellowANSI() throws {
+        let (renderer, mock) = makeRenderer()
+        let data = SDKMessage.TaskStartedData(
+            taskId: "task-002",
+            taskType: "subagent",
+            description: "Search for patterns"
+        )
+
+        renderer.render(.taskStarted(data))
+
+        // AC#2: taskStarted should use yellow ANSI styling
+        // Yellow ANSI: \u{001B}[33m
+        XCTAssertTrue(mock.output.contains("\u{001B}[33m") || mock.output.contains("\u{001B}["),
+            "taskStarted should use colored ANSI styling (yellow), got: \(mock.output.debugDescription)")
+    }
+
+    func testRenderTaskStarted_indentedWithTwoSpaces() throws {
+        let (renderer, mock) = makeRenderer()
+        let data = SDKMessage.TaskStartedData(
+            taskId: "task-003",
+            taskType: "subagent",
+            description: "Explore files"
+        )
+
+        renderer.render(.taskStarted(data))
+
+        // AC#2: taskStarted should be indented with two spaces
+        XCTAssertTrue(mock.output.hasPrefix("  ") || mock.output.contains("\n  "),
+            "taskStarted output should be indented with two spaces, got: \(mock.output.debugDescription)")
+    }
+
+    // MARK: - AC#5: taskProgress renders with indented [sub-agent] prefix (P0)
+
+    func testRenderTaskProgress_showsSubAgentPrefix() throws {
+        let (renderer, mock) = makeRenderer()
+        let data = SDKMessage.TaskProgressData(
+            taskId: "task-001",
+            taskType: "subagent",
+            usage: TokenUsage(inputTokens: 500, outputTokens: 200)
+        )
+
+        renderer.render(.taskProgress(data))
+
+        // AC#5: taskProgress should render with [sub-agent] prefix
+        let output = mock.output
+        XCTAssertTrue(output.contains("[sub-agent]"),
+            "taskProgress should contain '[sub-agent]' prefix, got: \(output)")
+        XCTAssertTrue(output.contains("task-001"),
+            "taskProgress should show task ID, got: \(output)")
+    }
+
+    func testRenderTaskProgress_usesGreyANSI() throws {
+        let (renderer, mock) = makeRenderer()
+        let data = SDKMessage.TaskProgressData(
+            taskId: "task-002",
+            taskType: "subagent",
+            usage: TokenUsage(inputTokens: 100, outputTokens: 50)
+        )
+
+        renderer.render(.taskProgress(data))
+
+        // AC#5: taskProgress should use grey/dim ANSI styling
+        XCTAssertTrue(mock.output.contains("\u{001B}[2m") || mock.output.contains("\u{001B}["),
+            "taskProgress should use grey/dim ANSI styling, got: \(mock.output.debugDescription)")
+    }
+
+    func testRenderTaskProgress_indentedWithTwoSpaces() throws {
+        let (renderer, mock) = makeRenderer()
+        let data = SDKMessage.TaskProgressData(
+            taskId: "task-003",
+            taskType: "subagent"
+        )
+
+        renderer.render(.taskProgress(data))
+
+        // AC#5: taskProgress should be indented with two spaces
+        XCTAssertTrue(mock.output.hasPrefix("  ") || mock.output.contains("\n  "),
+            "taskProgress output should be indented with two spaces, got: \(mock.output.debugDescription)")
+    }
+
+    func testRenderTaskProgress_withoutUsage_stillRenders() throws {
+        let (renderer, mock) = makeRenderer()
+        let data = SDKMessage.TaskProgressData(
+            taskId: "task-004",
+            taskType: "subagent",
+            usage: nil
+        )
+
+        renderer.render(.taskProgress(data))
+
+        // AC#5: taskProgress should render even without usage data
+        let output = mock.output
+        XCTAssertTrue(output.contains("[sub-agent]"),
+            "taskProgress without usage should still render [sub-agent] prefix, got: \(output)")
+        XCTAssertTrue(output.contains("task-004"),
+            "taskProgress without usage should still show task ID, got: \(output)")
+    }
+
+    // MARK: - AC#2 + AC#5: taskStarted and taskProgress no longer silent (P0)
+
+    func testRenderTaskStarted_producesOutput_notSilent() throws {
+        let (renderer, mock) = makeRenderer()
+        let data = SDKMessage.TaskStartedData(
+            taskId: "task-100",
+            taskType: "subagent",
+            description: "Important task"
+        )
+
+        renderer.render(.taskStarted(data))
+
+        // AC#2: taskStarted should produce output (not silently ignored)
+        XCTAssertFalse(mock.output.isEmpty,
+            "taskStarted should produce output, not be silently ignored (AC#2). Got empty output.")
+    }
+
+    func testRenderTaskProgress_producesOutput_notSilent() throws {
+        let (renderer, mock) = makeRenderer()
+        let data = SDKMessage.TaskProgressData(
+            taskId: "task-101",
+            taskType: "subagent"
+        )
+
+        renderer.render(.taskProgress(data))
+
+        // AC#5: taskProgress should produce output (not silently ignored)
+        XCTAssertFalse(mock.output.isEmpty,
+            "taskProgress should produce output, not be silently ignored (AC#5). Got empty output.")
+    }
 }

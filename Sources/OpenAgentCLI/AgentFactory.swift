@@ -130,10 +130,18 @@ enum AgentFactory {
     static func computeToolPool(from args: ParsedArgs, skillRegistry: SkillRegistry? = nil) -> [ToolProtocol] {
         let baseTools = mapToolTier(args.tools)
 
-        // Include SkillTool when skill-related args are present
+        // Build custom tools array: include Agent tool and Skill tool as needed
         var customTools: [ToolProtocol]? = nil
+
+        // Include Agent tool (createAgentTool) when tool tier includes advanced tools
+        let includeAgentTool = args.tools == "advanced" || args.tools == "all" || args.tools == "specialist"
+        if includeAgentTool {
+            customTools = (customTools ?? []) + [createAgentTool()]
+        }
+
+        // Include SkillTool when skill-related args are present
         if let registry = skillRegistry {
-            customTools = [createSkillTool(registry: registry)]
+            customTools = (customTools ?? []) + [createSkillTool(registry: registry)]
         }
 
         return assembleToolPool(

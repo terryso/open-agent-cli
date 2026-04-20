@@ -25,6 +25,11 @@ enum ANSI {
         "\u{001B}[36m\(text)\u{001B}[0m"
     }
 
+    /// Yellow foreground color.
+    static func yellow(_ text: String) -> String {
+        "\u{001B}[33m\(text)\u{001B}[0m"
+    }
+
     /// Reset all styling.
     static func reset() -> String {
         "\u{001B}[0m"

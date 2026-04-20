@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-19
-last_updated: 2026-04-20T19:00:00
+last_updated: 2026-04-20T21:00:00
 project: open-agent-cli
 project_key: NOKEY
 tracking_system: file-system
@@ -67,9 +67,9 @@ development_status:
   epic-3-retrospective: optional
 
   # Epic 4: External Integration — MCP & Sub-Agents (P0)
-  epic-4: in-progress
+  epic-4: done
   4-1-mcp-server-configuration-and-connection: done
-  4-2-sub-agent-delegation: backlog
+  4-2-sub-agent-delegation: done
   epic-4-retrospective: optional
 
   # Epic 5: Safe Execution & Control (P0)

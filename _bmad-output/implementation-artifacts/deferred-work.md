@@ -11,3 +11,9 @@
 - **Misleading error message in registry guard** — CLI.swift line 48 shows "Skill not found" when the actual condition is "no registry could be built". Defensive code that should never trigger.
 - **AgentOptions not populated with skill fields** — createAgent does not set skillDirectories/skillNames/skillRegistry on AgentOptions, relying solely on SkillTool injection. Functionally equivalent but deviates from spec's recommended autoDiscoverSkills() approach. Intentional design choice.
 - **Missing test for --skill + positional prompt combined path** — The code path where both --skill and a prompt are provided is untested. Low priority.
+
+## Deferred from: code review of 4-2-sub-agent-delegation.md (2026-04-20)
+
+- **testToolPool_advancedWithSkill_includesBoth name misleading** — Test name claims "includesBoth" but only asserts Agent tool presence, not Skill tool. Pre-existing test quality gap. Low priority.
+- **Weak ANSI color assertions in tests** — `testRenderTaskStarted_usesYellowANSI` and `testRenderTaskProgress_usesGreyANSI` use `|| contains("\u{001B}[")` fallback that matches any ANSI code. By-design test simplification. Low risk.
+- **AC#3 and AC#4 have no automated tests** — Sub-agent output continuation (AC#3) and permission/API inheritance (AC#4) are SDK-internal behaviors not testable at CLI level. Acknowledged in story design.

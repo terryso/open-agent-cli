@@ -215,4 +215,29 @@ extension OutputRenderer {
             return "An unexpected error occurred."
         }
     }
+
+    // MARK: - AC#2, AC#5: Sub-agent progress rendering (Story 4.2)
+
+    /// Render a sub-agent task started event with yellow styling and indented [sub-agent] prefix.
+    ///
+    /// Format: `  [sub-agent] <description>` (yellow ANSI, two-space indent)
+    func renderTaskStarted(_ data: SDKMessage.TaskStartedData) {
+        let line = "  " + ANSI.yellow("[sub-agent] \(data.description)")
+        output.write("\(line)\n")
+    }
+
+    /// Render a sub-agent task progress event with grey/dim styling and indented [sub-agent] prefix.
+    ///
+    /// Format: `  [sub-agent] <taskId> - <usage info>` (grey/dim ANSI, two-space indent)
+    /// Usage info is shown when available; otherwise only taskId is displayed.
+    func renderTaskProgress(_ data: SDKMessage.TaskProgressData) {
+        let usageStr: String
+        if let usage = data.usage {
+            usageStr = " - \(usage.inputTokens)in/\(usage.outputTokens)out"
+        } else {
+            usageStr = ""
+        }
+        let line = "  " + ANSI.dim("[sub-agent] \(data.taskId)\(usageStr)")
+        output.write("\(line)\n")
+    }
 }
