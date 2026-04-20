@@ -93,7 +93,16 @@ enum AgentFactory {
         let shouldAutoRestore = !args.noRestore && args.sessionId == nil && args.prompt == nil && args.skillName == nil
         let sessionId: String? = shouldAutoRestore ? nil : resolveSessionId(from: args)
 
-        // 8. Assemble AgentOptions
+        // 8. Create canUseTool callback via PermissionHandler
+        let reader = FileHandleInputReader()
+        let permRenderer = OutputRenderer()
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: permMode,
+            reader: reader,
+            renderer: permRenderer
+        )
+
+        // 9. Assemble AgentOptions
         let options = AgentOptions(
             apiKey: apiKey,
             model: args.model,
@@ -104,6 +113,7 @@ enum AgentFactory {
             maxBudgetUsd: args.maxBudgetUsd,
             thinking: thinking,
             permissionMode: permMode,
+            canUseTool: canUseTool,
             cwd: FileManager.default.currentDirectoryPath,
             tools: toolPool,
             mcpServers: mcpServers,
@@ -116,7 +126,7 @@ enum AgentFactory {
             persistSession: true
         )
 
-        // 9. Call SDK factory function
+        // 10. Call SDK factory function
         let agent = OpenAgentSDK.createAgent(options: options)
         return (agent, sessionStore)
     }

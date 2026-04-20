@@ -17,3 +17,8 @@
 - **testToolPool_advancedWithSkill_includesBoth name misleading** — Test name claims "includesBoth" but only asserts Agent tool presence, not Skill tool. Pre-existing test quality gap. Low priority.
 - **Weak ANSI color assertions in tests** — `testRenderTaskStarted_usesYellowANSI` and `testRenderTaskProgress_usesGreyANSI` use `|| contains("\u{001B}[")` fallback that matches any ANSI code. By-design test simplification. Low risk.
 - **AC#3 and AC#4 have no automated tests** — Sub-agent output continuation (AC#3) and permission/API inheritance (AC#4) are SDK-internal behaviors not testable at CLI level. Acknowledged in story design.
+
+## Deferred from: code review of 5-1-permission-mode-configuration.md (2026-04-20)
+
+- **Single-shot mode + default/plan mode: stdin EOF causes silent deny of all write tools** — When using `--prompt` (single-shot) with `--mode default` or `--mode plan`, stdin is non-interactive. The `FileHandleInputReader.readLine()` returns nil (EOF), causing `canUseTool` to return `.deny("No input received")` for all write operations. This silently blocks all write tools in single-shot mode when permission mode requires approval. Deferred to Story 5.2 (Interactive Permission Prompts) which will address non-interactive context handling.
+- **PermissionHandler bypasses OutputRendering protocol, writes directly to output stream** — `PermissionHandler.promptUser` writes to `renderer.output` (AnyTextOutputStream) directly instead of using the `OutputRendering` protocol methods. This is a deliberate architectural choice since `OutputRendering` is designed for `SDKMessage` events, not permission prompts. Pre-existing design pattern.
