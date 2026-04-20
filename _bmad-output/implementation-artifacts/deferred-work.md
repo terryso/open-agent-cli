@@ -1,5 +1,10 @@
 # Deferred Work
 
+## Deferred from: code review of 3-1-auto-save-sessions-on-exit.md (2026-04-20)
+
+- **Force-unwrap on .data(using: .utf8)! in closeAgentSafely** — Pre-existing pattern (now 7 occurrences total in CLI.swift, 1 new in this change). The new occurrence is in `closeAgentSafely` at CLI.swift:138. Not introduced by this change, already tracked.
+- **testCreateAgent_sessionSavedToDisk_afterClose lacks disk-write verification** — Test only verifies close() succeeds without error. Full disk-write verification requires AgentOptions to expose a custom sessionsDir parameter. Low priority; the SDK's internal tests cover the write path.
+
 ## Deferred from: code review of 2-3-skills-loading-and-invocation.md (2026-04-20)
 
 - **Force-unwrap on .data(using: .utf8)! in error paths** — Pre-existing pattern (6 occurrences total in CLI.swift, 3 new in this change). Not introduced by this change.

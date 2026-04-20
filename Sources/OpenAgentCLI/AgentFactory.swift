@@ -83,7 +83,11 @@ enum AgentFactory {
         let registry = createSkillRegistry(from: args)
         let toolPool = computeToolPool(from: args, skillRegistry: registry)
 
-        // 7. Assemble AgentOptions
+        // 7. Resolve session configuration
+        let sessionStore = SessionStore()
+        let sessionId = resolveSessionId(from: args)
+
+        // 8. Assemble AgentOptions
         let options = AgentOptions(
             apiKey: apiKey,
             model: args.model,
@@ -96,12 +100,15 @@ enum AgentFactory {
             permissionMode: permMode,
             cwd: FileManager.default.currentDirectoryPath,
             tools: toolPool,
+            sessionStore: sessionStore,
+            sessionId: sessionId,
             logLevel: logLevel,
             allowedTools: args.toolAllow,
-            disallowedTools: args.toolDeny
+            disallowedTools: args.toolDeny,
+            persistSession: true
         )
 
-        // 8. Call SDK factory function
+        // 9. Call SDK factory function
         return OpenAgentSDK.createAgent(options: options)
     }
 
@@ -175,5 +182,16 @@ enum AgentFactory {
             throw AgentFactoryError.invalidProvider(value)
         }
         return provider
+    }
+
+    /// Resolve the session ID from parsed CLI arguments.
+    ///
+    /// Uses the explicitly provided `--session` ID if available,
+    /// otherwise generates a new UUID string.
+    ///
+    /// - Parameter args: The fully resolved CLI arguments.
+    /// - Returns: A session ID string (either from `--session` or a new UUID).
+    static func resolveSessionId(from args: ParsedArgs) -> String {
+        return args.sessionId ?? UUID().uuidString
     }
 }

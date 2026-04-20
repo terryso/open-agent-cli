@@ -71,7 +71,7 @@ enum CLI {
                 let toolNames = AgentFactory.computeToolPool(from: args, skillRegistry: skillRegistry).map { $0.name }
                 let repl = REPLLoop(agent: agent, renderer: renderer, reader: reader, toolNames: toolNames, skillRegistry: skillRegistry)
                 await repl.start()
-                try? await agent.close()
+                await closeAgentSafely(agent)
                 return
             }
         }
@@ -98,7 +98,7 @@ enum CLI {
                 FileHandle.standardError.write((errorMessage + "\n").data(using: .utf8)!)
             }
 
-            try? await agent.close()
+            await closeAgentSafely(agent)
             Foundation.exit(exitCode)
         } else if args.skillName == nil {
             // REPL mode: start interactive loop (only if --skill was not already handled).
@@ -110,7 +110,7 @@ enum CLI {
 
             let repl = REPLLoop(agent: agent, renderer: renderer, reader: reader, toolNames: toolNames, skillRegistry: skillRegistry)
             await repl.start()
-            try? await agent.close()
+            await closeAgentSafely(agent)
         }
     }
 
@@ -122,6 +122,20 @@ enum CLI {
             let msg = "Error: \(error.localizedDescription)"
             FileHandle.standardError.write((msg + "\n").data(using: .utf8)!)
             Foundation.exit(1)
+        }
+    }
+
+    /// Close the agent, handling session save failures gracefully.
+    ///
+    /// If `agent.close()` throws (e.g. disk full), a warning is printed to stderr
+    /// but the CLI still exits normally. The exit code is always 0 regardless of
+    /// save failures -- the session data is non-critical.
+    private static func closeAgentSafely(_ agent: Agent) async {
+        do {
+            try await agent.close()
+        } catch {
+            let warning = "Warning: Failed to save session: \(error.localizedDescription)"
+            FileHandle.standardError.write((warning + "\n").data(using: .utf8)!)
         }
     }
 }
