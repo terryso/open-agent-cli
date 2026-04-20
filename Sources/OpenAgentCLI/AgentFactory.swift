@@ -83,6 +83,11 @@ enum AgentFactory {
         let registry = createSkillRegistry(from: args)
         let toolPool = computeToolPool(from: args, skillRegistry: registry)
 
+        // 6b. Load MCP server configuration (if --mcp provided)
+        let mcpServers: [String: McpServerConfig]? = try args.mcpConfigPath.map {
+            try MCPConfigLoader.loadMcpConfig(from: $0)
+        }
+
         // 7. Resolve session configuration
         let sessionStore = SessionStore()
         let shouldAutoRestore = !args.noRestore && args.sessionId == nil && args.prompt == nil && args.skillName == nil
@@ -101,6 +106,7 @@ enum AgentFactory {
             permissionMode: permMode,
             cwd: FileManager.default.currentDirectoryPath,
             tools: toolPool,
+            mcpServers: mcpServers,
             sessionStore: sessionStore,
             sessionId: sessionId,
             logLevel: logLevel,

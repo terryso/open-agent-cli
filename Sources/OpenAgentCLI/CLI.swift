@@ -42,6 +42,11 @@ enum CLI {
         // Dispatch based on mode
         let (agent, sessionStore) = createAgentOrExit(from: args)
 
+        if args.mcpConfigPath != nil {
+            let renderer = OutputRenderer()
+            renderer.output.write("[MCP servers configured]\n")
+        }
+
         // Handle --skill auto-invocation
         if let skillName = args.skillName {
             guard let registry = skillRegistry else {
