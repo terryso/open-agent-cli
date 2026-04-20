@@ -459,6 +459,81 @@ final class REPLLoopTests: XCTestCase {
             "InputReading should receive the prompt string")
     }
 
+    // MARK: - AC#5 (Story 2.1): /tools command displays loaded tools
+
+    func testREPLLoop_toolsCommand_displaysLoadedTools() async throws {
+        // AC#5: /tools command should display the loaded tool names
+        let (renderer, mockOutput) = makeRenderer()
+        let inputReader = MockInputReader(["/tools", "/exit"])
+
+        let toolNames = ["Bash", "Read", "Write", "Edit", "Glob"]
+        let repl = REPLLoop(
+            agent: try makeTestAgent(),
+            renderer: renderer,
+            reader: inputReader,
+            toolNames: toolNames
+        )
+
+        await repl.start()
+
+        let output = mockOutput.output
+        XCTAssertTrue(output.contains("Bash"),
+            "/tools output should contain 'Bash' (AC#5). Got: \(output)")
+        XCTAssertTrue(output.contains("Read"),
+            "/tools output should contain 'Read' (AC#5). Got: \(output)")
+        XCTAssertTrue(output.contains("Edit"),
+            "/tools output should contain 'Edit' (AC#5). Got: \(output)")
+    }
+
+    func testREPLLoop_toolsCommand_sortedAlphabetically() async throws {
+        // AC#5: /tools output should be sorted alphabetically
+        let (renderer, mockOutput) = makeRenderer()
+        let inputReader = MockInputReader(["/tools", "/exit"])
+
+        // Pass tools in non-alphabetical order
+        let toolNames = ["Grep", "Bash", "Edit"]
+        let repl = REPLLoop(
+            agent: try makeTestAgent(),
+            renderer: renderer,
+            reader: inputReader,
+            toolNames: toolNames
+        )
+
+        await repl.start()
+
+        let output = mockOutput.output
+        // Verify alphabetical order: Bash before Edit before Grep
+        if let bashRange = output.range(of: "Bash"),
+           let editRange = output.range(of: "Edit"),
+           let grepRange = output.range(of: "Grep") {
+            XCTAssertTrue(bashRange.lowerBound < editRange.lowerBound,
+                "Bash should appear before Edit in /tools output (AC#5)")
+            XCTAssertTrue(editRange.lowerBound < grepRange.lowerBound,
+                "Edit should appear before Grep in /tools output (AC#5)")
+        } else {
+            XCTFail("/tools output should contain all tool names for sorting check. Got: \(output)")
+        }
+    }
+
+    func testREPLLoop_toolsCommand_emptyList_showsNoToolsMessage() async throws {
+        // AC#5 edge: /tools with empty list should show "No tools" message
+        let (renderer, mockOutput) = makeRenderer()
+        let inputReader = MockInputReader(["/tools", "/exit"])
+
+        let repl = REPLLoop(
+            agent: try makeTestAgent(),
+            renderer: renderer,
+            reader: inputReader,
+            toolNames: []  // Empty tool list
+        )
+
+        await repl.start()
+
+        let output = mockOutput.output.lowercased()
+        XCTAssertTrue(output.contains("no tools") || output.contains("0 tools") || output.contains("no tools loaded"),
+            "/tools with empty list should indicate no tools (AC#5). Got: \(output)")
+    }
+
     // MARK: - Test Agent Helper
 
     /// Creates a test Agent with a dummy API key for REPLLoop tests.

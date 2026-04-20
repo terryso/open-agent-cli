@@ -66,7 +66,11 @@ enum CLI {
             // REPL mode: start interactive loop.
             let reader = FileHandleInputReader()
             let renderer = OutputRenderer()
-            let repl = REPLLoop(agent: agent, renderer: renderer, reader: reader)
+
+            // Extract tool names for /tools command display
+            let toolNames = AgentFactory.computeToolPool(from: args).map { $0.name }
+
+            let repl = REPLLoop(agent: agent, renderer: renderer, reader: reader, toolNames: toolNames)
             await repl.start()
             try? await agent.close()
         }

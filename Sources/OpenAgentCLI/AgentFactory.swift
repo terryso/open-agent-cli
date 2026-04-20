@@ -58,7 +58,10 @@ enum AgentFactory {
         // 5. Convert logLevel
         let logLevel: LogLevel = mapLogLevel(args.logLevel)
 
-        // 6. Assemble AgentOptions
+        // 6. Load and assemble tools
+        let toolPool = computeToolPool(from: args)
+
+        // 7. Assemble AgentOptions
         let options = AgentOptions(
             apiKey: apiKey,
             model: args.model,
@@ -70,16 +73,51 @@ enum AgentFactory {
             thinking: thinking,
             permissionMode: permMode,
             cwd: FileManager.default.currentDirectoryPath,
+            tools: toolPool,
             logLevel: logLevel,
             allowedTools: args.toolAllow,
             disallowedTools: args.toolDeny
         )
 
-        // 7. Call SDK factory function
+        // 8. Call SDK factory function
         return OpenAgentSDK.createAgent(options: options)
     }
 
     // MARK: - Conversion Helpers (exposed for testing)
+
+    /// Compute the assembled tool pool from parsed CLI arguments.
+    ///
+    /// Single source of truth for tool loading — used by both `createAgent`
+    /// and `CLI` (for `/tools` display).
+    static func computeToolPool(from args: ParsedArgs) -> [ToolProtocol] {
+        let baseTools = mapToolTier(args.tools)
+        return assembleToolPool(
+            baseTools: baseTools,
+            customTools: nil,
+            mcpTools: nil,
+            allowed: args.toolAllow,
+            disallowed: args.toolDeny
+        )
+    }
+
+    /// Map a tool tier string to an array of SDK tools.
+    ///
+    /// - Parameter tier: The tier string from CLI args (e.g. "core", "advanced", "specialist", "all").
+    /// - Returns: An array of `ToolProtocol` for the specified tier.
+    static func mapToolTier(_ tier: String) -> [ToolProtocol] {
+        switch tier {
+        case "core":
+            return getAllBaseTools(tier: .core)
+        case "advanced":
+            return getAllBaseTools(tier: .core) + getAllBaseTools(tier: .advanced)
+        case "specialist":
+            return getAllBaseTools(tier: .specialist)
+        case "all":
+            return getAllBaseTools(tier: .core) + getAllBaseTools(tier: .specialist)
+        default:
+            return getAllBaseTools(tier: .core)  // Safe fallback
+        }
+    }
 
     /// Map a log level string to the SDK's `LogLevel` enum.
     ///

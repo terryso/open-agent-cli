@@ -1,5 +1,5 @@
 # generated: 2026-04-19
-# last_updated: 2026-04-20
+# last_updated: 2026-04-20T10:25:00
 # project: open-agent-cli
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-19
-last_updated: 2026-04-20
+last_updated: 2026-04-20T10:15:00
 project: open-agent-cli
 project_key: NOKEY
 tracking_system: file-system
@@ -43,7 +43,7 @@ story_location: "_bmad-output/implementation-artifacts"
 
 development_status:
   # Epic 1: First Conversation (P0)
-  epic-1: in-progress
+  epic-1: done
   1-1-cli-entry-point-and-argument-parser: done
   1-2-agent-factory-with-core-configuration: done
   1-3-streaming-output-renderer: done
@@ -53,8 +53,8 @@ development_status:
   epic-1-retrospective: optional
 
   # Epic 2: Agent with Tools (P0)
-  epic-2: backlog
-  2-1-core-tool-loading-and-display: backlog
+  epic-2: in-progress
+  2-1-core-tool-loading-and-display: done
   2-2-tool-call-visibility: backlog
   2-3-skills-loading-and-invocation: backlog
   epic-2-retrospective: optional

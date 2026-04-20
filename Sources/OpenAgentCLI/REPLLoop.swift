@@ -39,6 +39,14 @@ struct REPLLoop {
     let agent: Agent
     let renderer: OutputRenderer
     let reader: InputReading
+    let toolNames: [String]
+
+    init(agent: Agent, renderer: OutputRenderer, reader: InputReading, toolNames: [String] = []) {
+        self.agent = agent
+        self.renderer = renderer
+        self.reader = reader
+        self.toolNames = toolNames
+    }
 
     /// Start the REPL loop.
     ///
@@ -79,6 +87,8 @@ struct REPLLoop {
             return true  // AC#5
         case "/help":
             printHelp()   // AC#4
+        case "/tools":
+            printTools()
         default:
             // Unknown command
             renderer.output.write("Unknown command: \(input). Type /help for available commands.\n")
@@ -91,9 +101,23 @@ struct REPLLoop {
         let help = """
         Available commands:
           /help          Show this help message
+          /tools         Show loaded tools
           /exit          Exit the REPL
           /quit          Exit the REPL
         """
         renderer.output.write("\(help)\n")
+    }
+
+    /// Print the list of loaded tools, sorted alphabetically.
+    private func printTools() {
+        if toolNames.isEmpty {
+            renderer.output.write("No tools loaded.\n")
+        } else {
+            let sorted = toolNames.sorted()
+            renderer.output.write("Loaded tools (\(sorted.count)):\n")
+            for name in sorted {
+                renderer.output.write("  \(name)\n")
+            }
+        }
     }
 }
