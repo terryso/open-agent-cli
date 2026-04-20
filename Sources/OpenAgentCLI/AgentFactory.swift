@@ -31,6 +31,27 @@ enum AgentFactory {
 
     // MARK: - Public API
 
+    /// Create a SkillRegistry from parsed CLI arguments if skill-related args are present.
+    ///
+    /// Returns nil when neither `--skill-dir` nor `--skill` is specified.
+    /// When `--skill-dir` is provided, discovers all skills from that directory.
+    /// When only `--skill` is provided, discovers from SDK default directories.
+    /// Note: All skills from the directory are registered (not filtered by skillName)
+    /// so that the CLI can list available skills in error messages for invalid names.
+    ///
+    /// - Parameter args: The fully resolved CLI arguments.
+    /// - Returns: A populated SkillRegistry, or nil if no skill args present.
+    static func createSkillRegistry(from args: ParsedArgs) -> SkillRegistry? {
+        guard args.skillDir != nil || args.skillName != nil else { return nil }
+
+        let registry = SkillRegistry()
+        let dirs: [String]? = args.skillDir.map { [$0] }
+        // Discover all skills from the directory (don't filter by skillName)
+        // so that error messages can list available skills
+        registry.registerDiscoveredSkills(from: dirs, skillNames: nil)
+        return registry
+    }
+
     /// Create an SDK Agent from parsed CLI arguments.
     ///
     /// - Parameter args: The fully resolved CLI arguments (after ConfigLoader has applied config file values).
@@ -59,7 +80,8 @@ enum AgentFactory {
         let logLevel: LogLevel = mapLogLevel(args.logLevel)
 
         // 6. Load and assemble tools
-        let toolPool = computeToolPool(from: args)
+        let registry = createSkillRegistry(from: args)
+        let toolPool = computeToolPool(from: args, skillRegistry: registry)
 
         // 7. Assemble AgentOptions
         let options = AgentOptions(
@@ -89,11 +111,18 @@ enum AgentFactory {
     ///
     /// Single source of truth for tool loading — used by both `createAgent`
     /// and `CLI` (for `/tools` display).
-    static func computeToolPool(from args: ParsedArgs) -> [ToolProtocol] {
+    static func computeToolPool(from args: ParsedArgs, skillRegistry: SkillRegistry? = nil) -> [ToolProtocol] {
         let baseTools = mapToolTier(args.tools)
+
+        // Include SkillTool when skill-related args are present
+        var customTools: [ToolProtocol]? = nil
+        if let registry = skillRegistry {
+            customTools = [createSkillTool(registry: registry)]
+        }
+
         return assembleToolPool(
             baseTools: baseTools,
-            customTools: nil,
+            customTools: customTools,
             mcpTools: nil,
             allowed: args.toolAllow,
             disallowed: args.toolDeny

@@ -40,12 +40,14 @@ struct REPLLoop {
     let renderer: OutputRenderer
     let reader: InputReading
     let toolNames: [String]
+    let skillRegistry: SkillRegistry?
 
-    init(agent: Agent, renderer: OutputRenderer, reader: InputReading, toolNames: [String] = []) {
+    init(agent: Agent, renderer: OutputRenderer, reader: InputReading, toolNames: [String] = [], skillRegistry: SkillRegistry? = nil) {
         self.agent = agent
         self.renderer = renderer
         self.reader = reader
         self.toolNames = toolNames
+        self.skillRegistry = skillRegistry
     }
 
     /// Start the REPL loop.
@@ -89,6 +91,8 @@ struct REPLLoop {
             printHelp()   // AC#4
         case "/tools":
             printTools()
+        case "/skills":
+            printSkills()
         default:
             // Unknown command
             renderer.output.write("Unknown command: \(input). Type /help for available commands.\n")
@@ -102,6 +106,7 @@ struct REPLLoop {
         Available commands:
           /help          Show this help message
           /tools         Show loaded tools
+          /skills        Show loaded skills
           /exit          Exit the REPL
           /quit          Exit the REPL
         """
@@ -117,6 +122,25 @@ struct REPLLoop {
             renderer.output.write("Loaded tools (\(sorted.count)):\n")
             for name in sorted {
                 renderer.output.write("  \(name)\n")
+            }
+        }
+    }
+
+    /// Print the list of loaded skills with name and description, sorted by name.
+    private func printSkills() {
+        guard let registry = skillRegistry else {
+            renderer.output.write("No skills loaded.\n")
+            return
+        }
+
+        let skills = registry.allSkills
+        if skills.isEmpty {
+            renderer.output.write("No skills loaded.\n")
+        } else {
+            let sorted = skills.sorted { $0.name < $1.name }
+            renderer.output.write("Available skills (\(sorted.count)):\n")
+            for skill in sorted {
+                renderer.output.write("  \(skill.name): \(skill.description)\n")
             }
         }
     }

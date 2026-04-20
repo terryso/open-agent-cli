@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-19
-last_updated: 2026-04-20T11:41:00
+last_updated: 2026-04-20T20:45:00
 project: open-agent-cli
 project_key: NOKEY
 tracking_system: file-system
@@ -56,7 +56,7 @@ development_status:
   epic-2: in-progress
   2-1-core-tool-loading-and-display: done
   2-2-tool-call-visibility: done
-  2-3-skills-loading-and-invocation: backlog
+  2-3-skills-loading-and-invocation: done
   epic-2-retrospective: optional
 
   # Epic 3: Session Continuity (P0)
