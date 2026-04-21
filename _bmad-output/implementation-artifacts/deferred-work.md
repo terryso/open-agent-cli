@@ -27,3 +27,7 @@
 
 - **Duplicated makeArgs helper in SpecialistToolFilterTests and ToolLoadingTests** — Identical `makeArgs` helper in two test files. Maintenance burden when ParsedArgs fields change, but acceptable for test isolation. Pre-existing pattern from ToolLoadingTests.
 - **testSpecialistTier_hasExpectedCount uses weak >= 13 assertion** — Uses `XCTAssertGreaterThanOrEqual` instead of exact count. Intentional for forward compatibility if SDK adds more specialist tools.
+
+## Deferred from: code review of 6-3-dynamic-repl-commands.md (2026-04-21)
+
+- **`CostTracker` not `Sendable`** — CostTracker is a final class with mutable vars but no Sendable conformance or synchronization. Forward-compatibility concern for Swift 6 strict concurrency. Not blocking in Swift 5 mode. Same pattern as existing `AgentHolder`. Low priority.

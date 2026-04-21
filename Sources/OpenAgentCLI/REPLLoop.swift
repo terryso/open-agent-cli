@@ -40,6 +40,26 @@ final class AgentHolder {
     init(_ agent: Agent) { self.agent = agent }
 }
 
+// MARK: - CostTracker
+
+/// Tracks cumulative session cost and token usage across streaming queries.
+///
+/// Uses class reference semantics (like ``AgentHolder``) so that ``REPLLoop``
+/// — a struct with non-mutating methods — can accumulate values across calls
+/// without needing `mutating` access.
+final class CostTracker {
+    var cumulativeCostUsd: Double = 0.0
+    var cumulativeInputTokens: Int = 0
+    var cumulativeOutputTokens: Int = 0
+
+    /// Reset all counters to zero (used by `/clear`).
+    func reset() {
+        cumulativeCostUsd = 0.0
+        cumulativeInputTokens = 0
+        cumulativeOutputTokens = 0
+    }
+}
+
 // MARK: - REPLLoop
 
 /// Interactive read-eval-print loop.
@@ -55,11 +75,12 @@ struct REPLLoop {
     let skillRegistry: SkillRegistry?
     let sessionStore: SessionStore?
     let parsedArgs: ParsedArgs?
+    let costTracker: CostTracker
 
     /// Convenience accessor for the current agent.
     var agent: Agent { agentHolder.agent }
 
-    init(agent: Agent, renderer: OutputRenderer, reader: InputReading, toolNames: [String] = [], skillRegistry: SkillRegistry? = nil, sessionStore: SessionStore? = nil, parsedArgs: ParsedArgs? = nil) {
+    init(agent: Agent, renderer: OutputRenderer, reader: InputReading, toolNames: [String] = [], skillRegistry: SkillRegistry? = nil, sessionStore: SessionStore? = nil, parsedArgs: ParsedArgs? = nil, costTracker: CostTracker = CostTracker()) {
         self.agentHolder = AgentHolder(agent)
         self.renderer = renderer
         self.reader = reader
@@ -67,6 +88,7 @@ struct REPLLoop {
         self.skillRegistry = skillRegistry
         self.sessionStore = sessionStore
         self.parsedArgs = parsedArgs
+        self.costTracker = costTracker
     }
 
     /// Start the REPL loop.
@@ -112,6 +134,14 @@ struct REPLLoop {
             do {
                 let stream = agentHolder.agent.stream(trimmed)
                 for await message in stream {
+                    // Intercept result messages to track cumulative cost
+                    if case .result(let data) = message {
+                        costTracker.cumulativeCostUsd += data.totalCostUsd
+                        if let usage = data.usage {
+                            costTracker.cumulativeInputTokens += usage.inputTokens
+                            costTracker.cumulativeOutputTokens += usage.outputTokens
+                        }
+                    }
                     let event = SignalHandler.check()
                     if event == .interrupt || event == .forceExit || event == .terminate {
                         agentHolder.agent.interrupt()
@@ -160,6 +190,14 @@ struct REPLLoop {
             await handleSessions()
         case "/resume":
             await handleResume(parts: parts)
+        case "/model":
+            handleModel(parts: parts)
+        case "/mode":
+            handleMode(parts: parts)
+        case "/cost":
+            handleCost()
+        case "/clear":
+            handleClear()
         default:
             // Unknown command
             renderer.output.write("Unknown command: \(input). Type /help for available commands.\n")
@@ -171,13 +209,17 @@ struct REPLLoop {
     private func printHelp() {
         let help = """
         Available commands:
-          /help          Show this help message
-          /tools         Show loaded tools
-          /skills        Show loaded skills
-          /sessions      List saved sessions
-          /resume <id>   Resume a saved session
-          /exit          Exit the REPL
-          /quit          Exit the REPL
+          /help              Show this help message
+          /tools             Show loaded tools
+          /skills            Show loaded skills
+          /model <name>      Switch the LLM model
+          /mode <mode>       Switch permission mode
+          /cost              Show cumulative session cost and token usage
+          /clear             Clear conversation history and reset cost tracker
+          /sessions          List saved sessions
+          /resume <id>       Resume a saved session
+          /exit              Exit the REPL
+          /quit              Exit the REPL
         """
         renderer.output.write("\(help)\n")
     }
@@ -212,6 +254,74 @@ struct REPLLoop {
                 renderer.output.write("  \(skill.name): \(skill.description)\n")
             }
         }
+    }
+
+    // MARK: - /model command (Story 6.3)
+
+    /// Handle the /model <name> command: dynamically switch the LLM model.
+    private func handleModel(parts: [Substring]) {
+        // No argument (input is trimmed before reaching here, so /model <spaces>
+        // is indistinguishable from bare /model).
+        guard parts.count > 1 else {
+            renderer.output.write("Usage: /model <model-name> (empty or missing model name)\n")
+            return
+        }
+
+        let modelName = String(parts[1]).trimmingCharacters(in: .whitespaces)
+
+        // Whitespace-only argument
+        guard !modelName.isEmpty else {
+            renderer.output.write("Error: Model name cannot be empty.\n")
+            return
+        }
+
+        do {
+            try agentHolder.agent.switchModel(modelName)
+            renderer.output.write("Model switched to \(modelName)\n")
+        } catch {
+            renderer.output.write("Error: \(error.localizedDescription)\n")
+        }
+    }
+
+    // MARK: - /mode command (Story 6.3)
+
+    /// Handle the /mode <mode> command: dynamically switch the permission mode.
+    private func handleMode(parts: [Substring]) {
+        guard parts.count > 1, !parts[1].trimmingCharacters(in: .whitespaces).isEmpty else {
+            renderer.output.write("Usage: /mode <mode>\n")
+            return
+        }
+
+        let modeName = String(parts[1]).trimmingCharacters(in: .whitespaces)
+
+        guard let mode = PermissionMode(rawValue: modeName) else {
+            let validModes = PermissionMode.allCases.map(\.rawValue).joined(separator: ", ")
+            renderer.output.write("Invalid mode '\(modeName)'. Valid modes: \(validModes)\n")
+            return
+        }
+
+        agentHolder.agent.setPermissionMode(mode)
+        renderer.output.write("Permission mode switched to \(mode.rawValue)\n")
+    }
+
+    // MARK: - /cost command (Story 6.3)
+
+    /// Handle the /cost command: display cumulative session cost and token usage.
+    private func handleCost() {
+        renderer.output.write(String(format: "Session cost: $%.4f (input: %d tokens, output: %d tokens)\n",
+            costTracker.cumulativeCostUsd,
+            costTracker.cumulativeInputTokens,
+            costTracker.cumulativeOutputTokens
+        ))
+    }
+
+    // MARK: - /clear command (Story 6.3)
+
+    /// Handle the /clear command: clear conversation history and reset cost tracker.
+    private func handleClear() {
+        agentHolder.agent.clear()
+        costTracker.reset()
+        renderer.output.write("Conversation cleared. Starting a new session.\n")
     }
 
     // MARK: - /sessions command (Story 3.2)
