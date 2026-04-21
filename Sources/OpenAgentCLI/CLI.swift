@@ -101,13 +101,14 @@ enum CLI {
             }
 
             // Render summary line (turns, cost, duration)
-            renderer.renderSingleShotSummary(result)
+            let isDebug = args.debug || args.logLevel == "debug"
+            renderer.renderSingleShotSummary(result, debug: isDebug)
 
             // Determine exit code based on query status
             let exitCode = CLIExitCode.forQueryStatus(result.status)
 
             // For non-success statuses, write error to stderr
-            let errorMessage = CLISingleShot.formatErrorMessage(result)
+            let errorMessage = CLISingleShot.formatErrorMessage(result, debug: isDebug)
             if !errorMessage.isEmpty {
                 FileHandle.standardError.write((errorMessage + "\n").data(using: .utf8)!)
             }

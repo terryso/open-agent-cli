@@ -27,6 +27,7 @@ struct ParsedArgs {
     var quiet: Bool = false
     var output: String = "text"
     var logLevel: String? = nil
+    var debug: Bool = false
     var toolAllow: [String]? = nil
     var toolDeny: [String]? = nil
     var shouldExit: Bool = false
@@ -78,7 +79,7 @@ enum ArgumentParser {
 
     /// Flags that do not take a value (presence = true).
     private static let booleanFlags: Set<String> = [
-        "--quiet", "--no-restore"
+        "--quiet", "--no-restore", "--debug", "-d"
     ]
 
     // MARK: - Parse
@@ -213,6 +214,9 @@ enum ArgumentParser {
                 result.quiet = true
             } else if arg == "--no-restore" {
                 result.noRestore = true
+            } else if arg == "--debug" || arg == "-d" {
+                result.debug = true
+                result.logLevel = "debug"
             } else if arg == "--" {
                 // POSIX end-of-flags: remaining args are positional
                 i += 1
@@ -313,6 +317,7 @@ enum ArgumentParser {
 
         Output Options:
           --output <format>        Output format: text, json (default: text)
+          -d, --debug              Enable debug output (shorthand for --log-level debug)
           --log-level <level>      Log level: debug, info, warn, error
 
         General:

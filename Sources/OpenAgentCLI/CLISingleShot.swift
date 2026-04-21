@@ -38,16 +38,22 @@ enum CLISingleShot {
     /// For error/cancelled statuses, returns a human-readable description
     /// suitable for writing to stderr.
     ///
-    /// - Parameter result: The `QueryResult` to format.
+    /// - Parameters:
+    ///   - result: The `QueryResult` to format.
+    ///   - debug: When true, include detailed error messages from the SDK.
     /// - Returns: Error message string, or empty string for success.
-    static func formatErrorMessage(_ result: QueryResult) -> String {
+    static func formatErrorMessage(_ result: QueryResult, debug: Bool = false) -> String {
         switch result.status {
         case .success:
             return ""
         case .errorMaxTurns:
             return "Error: Max turns (\(result.numTurns)) exceeded."
         case .errorDuringExecution:
-            return "Error: Execution failed."
+            var msg = "Error: Execution failed."
+            if debug, let errors = result.errors, !errors.isEmpty {
+                msg += " " + errors.joined(separator: "; ")
+            }
+            return msg
         case .errorMaxBudgetUsd:
             let costStr = String(format: "$%.4f", result.totalCostUsd)
             return "Error: Budget exceeded at \(costStr)."

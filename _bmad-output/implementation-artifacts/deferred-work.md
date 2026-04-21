@@ -22,3 +22,8 @@
 
 - **Single-shot mode + default/plan mode: stdin EOF causes silent deny of all write tools** — When using `--prompt` (single-shot) with `--mode default` or `--mode plan`, stdin is non-interactive. The `FileHandleInputReader.readLine()` returns nil (EOF), causing `canUseTool` to return `.deny("No input received")` for all write operations. This silently blocks all write tools in single-shot mode when permission mode requires approval. Deferred to Story 5.2 (Interactive Permission Prompts) which will address non-interactive context handling.
 - **PermissionHandler bypasses OutputRendering protocol, writes directly to output stream** — `PermissionHandler.promptUser` writes to `renderer.output` (AnyTextOutputStream) directly instead of using the `OutputRendering` protocol methods. This is a deliberate architectural choice since `OutputRendering` is designed for `SDKMessage` events, not permission prompts. Pre-existing design pattern.
+
+## Deferred from: code review of 6-2-specialist-tools-and-tool-filtering.md (2026-04-21)
+
+- **Duplicated makeArgs helper in SpecialistToolFilterTests and ToolLoadingTests** — Identical `makeArgs` helper in two test files. Maintenance burden when ParsedArgs fields change, but acceptable for test isolation. Pre-existing pattern from ToolLoadingTests.
+- **testSpecialistTier_hasExpectedCount uses weak >= 13 assertion** — Uses `XCTAssertGreaterThanOrEqual` instead of exact count. Intentional for forward compatibility if SDK adds more specialist tools.

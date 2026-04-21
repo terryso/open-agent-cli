@@ -316,6 +316,7 @@ struct REPLLoop {
             quiet: args.quiet,
             output: args.output,
             logLevel: args.logLevel,
+            debug: args.debug,
             toolAllow: args.toolAllow,
             toolDeny: args.toolDeny,
             shouldExit: args.shouldExit,

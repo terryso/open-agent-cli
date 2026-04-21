@@ -112,7 +112,8 @@ extension OutputRenderer {
     /// Reuses the same format as the streaming result summary to avoid DRY violations.
     /// Format: `--- Turns: N | Cost: $X.XXXX | Duration: Xs`
     /// Error statuses include a red tag; cancelled uses dim styling.
-    func renderSingleShotSummary(_ result: QueryResult) {
+    /// When `debug` is true, individual error messages are listed below the summary.
+    func renderSingleShotSummary(_ result: QueryResult, debug: Bool = false) {
         switch result.status {
         case .success:
             let summary = formatSummaryLine(
@@ -134,6 +135,11 @@ extension OutputRenderer {
                 durationMs: result.durationMs
             )
             output.write("--- \(tag) \(summary)\n")
+            if debug, let errors = result.errors {
+                for error in errors {
+                    output.write("  \(ANSI.red(error))\n")
+                }
+            }
         }
     }
 
