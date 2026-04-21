@@ -49,9 +49,10 @@ enum CLISingleShot {
         case .errorMaxTurns:
             return "Error: Max turns (\(result.numTurns)) exceeded."
         case .errorDuringExecution:
+            let errorMessages = OutputRenderer.extractErrors(from: result)
             var msg = "Error: Execution failed."
-            if debug, let errors = result.errors, !errors.isEmpty {
-                msg += " " + errors.joined(separator: "; ")
+            if debug, !errorMessages.isEmpty {
+                msg += " " + errorMessages.joined(separator: "; ")
             }
             return msg
         case .errorMaxBudgetUsd:

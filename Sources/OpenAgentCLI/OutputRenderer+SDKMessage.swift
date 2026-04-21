@@ -10,10 +10,16 @@ extension OutputRenderer {
     /// Render a partial text chunk to the output stream without a trailing newline.
     ///
     /// This is the primary streaming target -- each text fragment is written
-    /// immediately as it arrives from the SDK.
+    /// immediately as it arrives from the SDK. When the text starts with the
+    /// `[thinking]` marker (extended thinking content from the model), it is
+    /// rendered with dim ANSI styling to visually distinguish it from regular output.
     func renderPartialMessage(_ data: SDKMessage.PartialData) {
         guard !data.text.isEmpty else { return }
-        output.write(data.text)
+        if data.text.hasPrefix("[thinking]") {
+            output.write(ANSI.dim(data.text))
+        } else {
+            output.write(data.text)
+        }
     }
 
     // MARK: - AC#2: assistant -- error detection and display
@@ -135,8 +141,9 @@ extension OutputRenderer {
                 durationMs: result.durationMs
             )
             output.write("--- \(tag) \(summary)\n")
-            if debug, let errors = result.errors {
-                for error in errors {
+            if debug {
+                let errorMessages = Self.extractErrors(from: result)
+                for error in errorMessages {
                     output.write("  \(ANSI.red(error))\n")
                 }
             }
@@ -245,5 +252,15 @@ extension OutputRenderer {
         }
         let line = "  " + ANSI.dim("[sub-agent] \(data.taskId)\(usageStr)")
         output.write("\(line)\n")
+    }
+
+    /// Extract error strings from a QueryResult's messages.
+    static func extractErrors(from result: QueryResult) -> [String] {
+        result.messages.compactMap { msg -> [String]? in
+            if case .result(let data) = msg, data.subtype != .success, let errors = data.errors {
+                return errors
+            }
+            return nil
+        }.flatMap { $0 }
     }
 }

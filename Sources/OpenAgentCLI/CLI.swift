@@ -46,14 +46,16 @@ enum CLI {
         // Dispatch based on mode
         let (agent, sessionStore) = await createAgentOrExit(from: args)
 
-        if args.mcpConfigPath != nil {
-            let renderer = OutputRenderer()
-            renderer.output.write("[MCP servers configured]\n")
-        }
+        if !args.quiet {
+            if args.mcpConfigPath != nil {
+                let renderer = OutputRenderer()
+                renderer.output.write("[MCP servers configured]\n")
+            }
 
-        if args.hooksConfigPath != nil {
-            let renderer = OutputRenderer()
-            renderer.output.write("[Hooks configured]\n")
+            if args.hooksConfigPath != nil {
+                let renderer = OutputRenderer()
+                renderer.output.write("[Hooks configured]\n")
+            }
         }
 
         // Handle --skill auto-invocation
@@ -72,7 +74,7 @@ enum CLI {
             // Invoke the skill's promptTemplate as a streaming query
             do {
                 let stream = agent.stream(skill.promptTemplate)
-                let renderer = OutputRenderer()
+                let renderer = OutputRenderer(quiet: args.quiet)
                 await renderer.renderStream(stream)
             } catch {
                 FileHandle.standardError.write(("Error invoking skill '\(skillName)': \(error.localizedDescription)\n").data(using: .utf8)!)
@@ -81,7 +83,7 @@ enum CLI {
             // If no positional prompt, enter REPL; otherwise let single-shot handle it
             if args.prompt == nil {
                 let reader = FileHandleInputReader()
-                let renderer = OutputRenderer()
+                let renderer = OutputRenderer(quiet: args.quiet)
                 let toolNames = AgentFactory.computeToolPool(from: args, skillRegistry: skillRegistry).map { $0.name }
                 let repl = REPLLoop(agent: agent, renderer: renderer, reader: reader, toolNames: toolNames, skillRegistry: skillRegistry, sessionStore: sessionStore, parsedArgs: args)
                 await repl.start()
@@ -93,16 +95,18 @@ enum CLI {
         if let prompt = args.prompt {
             // Single-shot mode: use agent.prompt() for blocking query, then exit.
             let result = await agent.prompt(prompt)
-            let renderer = OutputRenderer()
+            let renderer = OutputRenderer(quiet: args.quiet)
 
             // Output response text to stdout
             if !result.text.isEmpty {
                 print(result.text)
             }
 
-            // Render summary line (turns, cost, duration)
+            // Render summary line (turns, cost, duration) -- suppressed in quiet mode
             let isDebug = args.debug || args.logLevel == "debug"
-            renderer.renderSingleShotSummary(result, debug: isDebug)
+            if !args.quiet {
+                renderer.renderSingleShotSummary(result, debug: isDebug)
+            }
 
             // Determine exit code based on query status
             let exitCode = CLIExitCode.forQueryStatus(result.status)
@@ -118,7 +122,7 @@ enum CLI {
         } else if args.skillName == nil {
             // REPL mode: start interactive loop (only if --skill was not already handled).
             let reader = FileHandleInputReader()
-            let renderer = OutputRenderer()
+            let renderer = OutputRenderer(quiet: args.quiet)
 
             // Show restore hint when auto-restore is active
             if !args.noRestore && args.sessionId == nil {

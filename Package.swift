@@ -15,7 +15,8 @@ let package = Package(
     ],
     dependencies: [
         .package(
-            path: "../open-agent-sdk-swift"
+            url: "https://github.com/terryso/open-agent-sdk-swift",
+            branch: "main"
         ),
     ],
     targets: [

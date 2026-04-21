@@ -57,18 +57,44 @@ protocol OutputRendering: Sendable {
 struct OutputRenderer: OutputRendering {
     let output: AnyTextOutputStream
 
+    /// When true, only render essential output: partialMessage text and errors.
+    /// Suppresses tool calls, system messages, success results, and sub-agent events.
+    let quiet: Bool
+
     /// Create with default stdout output.
-    init() {
+    init(quiet: Bool = false) {
         self.output = AnyTextOutputStream(FileHandleTextOutputStream())
+        self.quiet = quiet
     }
 
     /// Create with custom output stream (for testing).
-    init<O: TextOutputStream>(output: O) {
+    init<O: TextOutputStream>(output: O, quiet: Bool = false) {
         self.output = AnyTextOutputStream(output)
+        self.quiet = quiet
     }
 
     /// Main dispatch method -- routes each SDKMessage case to its renderer.
     func render(_ message: SDKMessage) {
+        // Quiet mode: only render partialMessage text, assistant errors, and non-success results.
+        if quiet {
+            switch message {
+            case .partialMessage(let data):
+                renderPartialMessage(data)
+            case .assistant(let data):
+                renderAssistant(data)
+            case .result(let data):
+                // Only render non-success results (errors) in quiet mode.
+                if data.subtype != .success {
+                    renderResult(data)
+                }
+            default:
+                // Silence all other message types in quiet mode.
+                break
+            }
+            return
+        }
+
+        // Normal mode: render everything.
         switch message {
         case .partialMessage(let data):
             renderPartialMessage(data)
