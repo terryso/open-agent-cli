@@ -57,7 +57,8 @@ enum AgentFactory {
     /// - Parameter args: The fully resolved CLI arguments (after ConfigLoader has applied config file values).
     /// - Returns: A tuple of (configured Agent instance, SessionStore used for session management).
     /// - Throws: `AgentFactoryError` if required configuration is missing or invalid.
-    static func createAgent(from args: ParsedArgs) throws -> (Agent, SessionStore) {
+    /// - Throws: ``HookConfigLoaderError`` if hooks config file cannot be loaded or parsed.
+    static func createAgent(from args: ParsedArgs) async throws -> (Agent, SessionStore) {
         // 1. Validate API Key
         guard let apiKey = args.apiKey, !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw AgentFactoryError.missingApiKey
@@ -86,6 +87,13 @@ enum AgentFactory {
         // 6b. Load MCP server configuration (if --mcp provided)
         let mcpServers: [String: McpServerConfig]? = try args.mcpConfigPath.map {
             try MCPConfigLoader.loadMcpConfig(from: $0)
+        }
+
+        // 6c. Load hooks configuration (if --hooks provided)
+        var hookRegistry: HookRegistry?
+        if let hooksPath = args.hooksConfigPath {
+            let config = try HookConfigLoader.loadHooksConfig(from: hooksPath)
+            hookRegistry = await createHookRegistry(config: config)
         }
 
         // 7. Resolve session configuration
@@ -121,6 +129,7 @@ enum AgentFactory {
             mcpServers: mcpServers,
             sessionStore: sessionStore,
             sessionId: sessionId,
+            hookRegistry: hookRegistry,
             logLevel: logLevel,
             allowedTools: args.toolAllow,
             disallowedTools: args.toolDeny,

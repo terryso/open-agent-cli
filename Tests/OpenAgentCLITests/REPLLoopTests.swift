@@ -60,7 +60,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -78,7 +78,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader([nil])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -99,7 +99,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["What is 2+2?", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -121,7 +121,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["Hello", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -144,7 +144,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["First message", "Second message", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -167,7 +167,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["/help", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -186,7 +186,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["/help", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -208,7 +208,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["/help", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -228,7 +228,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -246,7 +246,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["/quit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -264,7 +264,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["message one", "message two", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -282,7 +282,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["/EXIT"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -299,7 +299,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["/QUIT"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -318,7 +318,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -336,7 +336,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["   ", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -353,7 +353,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["\t\t", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -370,7 +370,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["  \t  \t  ", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -387,7 +387,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["", "  ", "\t", "", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -406,7 +406,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["/unknown", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -426,7 +426,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["/bogus", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -468,7 +468,7 @@ final class REPLLoopTests: XCTestCase {
 
         let toolNames = ["Bash", "Read", "Write", "Edit", "Glob"]
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             toolNames: toolNames
@@ -493,7 +493,7 @@ final class REPLLoopTests: XCTestCase {
         // Pass tools in non-alphabetical order
         let toolNames = ["Grep", "Bash", "Edit"]
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             toolNames: toolNames
@@ -521,7 +521,7 @@ final class REPLLoopTests: XCTestCase {
         let inputReader = MockInputReader(["/tools", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             toolNames: []  // Empty tool list
@@ -541,7 +541,7 @@ final class REPLLoopTests: XCTestCase {
     /// Note: This agent won't successfully call the LLM API, but that's acceptable
     /// for unit tests. The REPLLoop tests focus on input dispatch, command handling,
     /// and loop control flow -- not on actual Agent responses.
-    private func makeTestAgent() throws -> Agent {
+    private func makeTestAgent() async throws -> Agent {
         let args = ParsedArgs(
             helpRequested: false,
             versionRequested: false,
@@ -572,6 +572,6 @@ final class REPLLoopTests: XCTestCase {
             errorMessage: nil,
             helpMessage: nil
         )
-        return try AgentFactory.createAgent(from: args).0
+        return try await AgentFactory.createAgent(from: args).0
     }
 }

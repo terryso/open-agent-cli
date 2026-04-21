@@ -325,7 +325,7 @@ struct REPLLoop {
         )
 
         do {
-            let (newAgent, _) = try AgentFactory.createAgent(from: resumeArgs)
+            let (newAgent, _) = try await AgentFactory.createAgent(from: resumeArgs)
             do {
                 try await agentHolder.agent.close()
             } catch {

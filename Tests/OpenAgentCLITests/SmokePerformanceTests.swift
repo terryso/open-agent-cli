@@ -60,8 +60,8 @@ final class SmokePerformanceTests: XCTestCase {
     }
 
     /// Creates a test Agent with a dummy API key.
-    private func makeTestAgent() throws -> Agent {
-        try AgentFactory.createAgent(from: makeTestArgs()).0
+    private func makeTestAgent() async throws -> Agent {
+        try await AgentFactory.createAgent(from: makeTestArgs()).0
     }
 
     // MARK: - AC#1: Cold start responsiveness (proxy measurement via --help/--version)
@@ -300,7 +300,7 @@ final class SmokePerformanceTests: XCTestCase {
         let inputReader = MockInputReader(["test message", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -319,7 +319,7 @@ final class SmokePerformanceTests: XCTestCase {
         let inputReader = MockInputReader(["msg1", "msg2", "msg3", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -386,14 +386,14 @@ final class SmokePerformanceTests: XCTestCase {
             "Renderer should not cause > 10MB memory increase, got \(String(format: "%.1f", deltaMB))MB delta (AC#4)")
     }
 
-    func testIdleMemory_agentCreation_memoryReasonable() throws {
+    func testIdleMemory_agentCreation_memoryReasonable() async throws {
         // AC#4: Creating an Agent should not push memory unreasonably high.
         // Note: XCTest process includes test framework overhead, so we use a relaxed threshold.
         guard let baselineMemory = SmokeTestHelper.residentMemoryBytes() else {
             throw XCTSkip("task_info memory measurement not available on this platform")
         }
 
-        let _ = try makeTestAgent()
+        let _ = try await makeTestAgent()
 
         guard let postAgentMemory = SmokeTestHelper.residentMemoryBytes() else {
             XCTFail("post-agent memory measurement failed")
@@ -441,7 +441,7 @@ final class SmokePerformanceTests: XCTestCase {
         let inputReader = MockInputReader(["/help", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -505,18 +505,20 @@ final class SmokePerformanceTests: XCTestCase {
 
     // MARK: - AgentFactory regression (Story 1.2)
 
-    func testAgentFactory_createsAgentSuccessfully() throws {
+    func testAgentFactory_createsAgentSuccessfully() async throws {
         // Regression guard: Agent creation from Story 1.2 still works.
-        let agent = try makeTestAgent()
+        let agent = try await makeTestAgent()
         // No assertion needed -- no crash means success
         _ = agent
     }
 
-    func testAgentFactory_missingApiKey_throws() throws {
+    func testAgentFactory_missingApiKey_throws() async throws {
         let args = makeTestArgs(apiKey: nil)
 
-        XCTAssertThrowsError(try AgentFactory.createAgent(from: args),
-            "Missing API key should throw") { error in
+        do {
+            _ = try await AgentFactory.createAgent(from: args)
+            XCTFail("Missing API key should throw")
+        } catch {
             XCTAssertTrue(error is AgentFactoryError,
                 "Should throw AgentFactoryError")
         }

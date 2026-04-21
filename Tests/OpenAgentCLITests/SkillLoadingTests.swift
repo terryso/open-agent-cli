@@ -79,7 +79,7 @@ final class SkillLoadingTests: XCTestCase {
     }
 
     /// Creates a test Agent with a dummy API key.
-    private func makeTestAgent() throws -> Agent {
+    private func makeTestAgent() async throws -> Agent {
         let args = ParsedArgs(
             helpRequested: false,
             versionRequested: false,
@@ -110,7 +110,7 @@ final class SkillLoadingTests: XCTestCase {
             errorMessage: nil,
             helpMessage: nil
         )
-        return try AgentFactory.createAgent(from: args).0
+        return try await AgentFactory.createAgent(from: args).0
     }
 
     /// Creates a temporary directory with a valid SKILL.md for testing.
@@ -202,18 +202,18 @@ final class SkillLoadingTests: XCTestCase {
         // The key assertion is that it doesn't crash
     }
 
-    func testCreateAgent_withSkillDir_agentCreatedSuccessfully() throws {
+    func testCreateAgent_withSkillDir_agentCreatedSuccessfully() async throws {
         // AC#1: Agent creation with skillDir should succeed
         let skillDir = createTempSkillDirectory()
         let args = makeArgs(skillDir: skillDir.path)
 
         // Should not throw -- skill loading is additive
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent,
             "Agent should be created successfully with skillDir (AC#1)")
     }
 
-    func testCreateAgent_withSkillDir_skillToolInPool() throws {
+    func testCreateAgent_withSkillDir_skillToolInPool() async throws {
         // AC#1: Agent's tool pool should contain the SkillTool when skillDir is provided
         let skillDir = createTempSkillDirectory()
         let args = makeArgs(skillDir: skillDir.path)
@@ -226,7 +226,7 @@ final class SkillLoadingTests: XCTestCase {
             "Tool pool should contain 'Skill' tool when skillDir is provided (AC#1). Got: \(toolNames)")
     }
 
-    func testCreateAgent_withoutSkillDir_noSkillToolInPool() throws {
+    func testCreateAgent_withoutSkillDir_noSkillToolInPool() async throws {
         // AC#1 regression: Without skillDir, no SkillTool in pool
         let args = makeArgs()  // No skillDir
 
@@ -330,7 +330,7 @@ final class SkillLoadingTests: XCTestCase {
         let registry = AgentFactory.createSkillRegistry(from: args)
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             toolNames: [],
@@ -379,7 +379,7 @@ final class SkillLoadingTests: XCTestCase {
         registry.register(skill2)
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             toolNames: [],
@@ -444,7 +444,7 @@ final class SkillLoadingTests: XCTestCase {
         registry.register(skillM)
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             toolNames: [],
@@ -473,7 +473,7 @@ final class SkillLoadingTests: XCTestCase {
         let inputReader = MockInputReader(["/skills", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             toolNames: [],
@@ -493,7 +493,7 @@ final class SkillLoadingTests: XCTestCase {
         let inputReader = MockInputReader(["/skills", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             toolNames: []
@@ -514,7 +514,7 @@ final class SkillLoadingTests: XCTestCase {
         let inputReader = MockInputReader(["/help", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             toolNames: []
@@ -529,10 +529,10 @@ final class SkillLoadingTests: XCTestCase {
 
     // MARK: - AC#1 Regression: Existing behavior unchanged
 
-    func testCreateAgent_withoutSkillArgs_behaviorUnchanged() throws {
+    func testCreateAgent_withoutSkillArgs_behaviorUnchanged() async throws {
         // Regression: Agent creation without skill args should behave exactly as before
         let args = makeArgs()
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         XCTAssertNotNil(agent, "Agent creation without skill args should still work (regression)")
         XCTAssertEqual(agent.model, "glm-5.1", "Model should still be set correctly (regression)")
@@ -623,7 +623,7 @@ final class SkillLoadingTests: XCTestCase {
         registry.register(skill)
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             toolNames: [],
@@ -658,7 +658,7 @@ final class SkillLoadingTests: XCTestCase {
         registry.register(skill)
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             toolNames: [],

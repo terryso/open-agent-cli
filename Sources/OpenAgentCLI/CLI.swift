@@ -44,11 +44,16 @@ enum CLI {
         let skillRegistry = AgentFactory.createSkillRegistry(from: args)
 
         // Dispatch based on mode
-        let (agent, sessionStore) = createAgentOrExit(from: args)
+        let (agent, sessionStore) = await createAgentOrExit(from: args)
 
         if args.mcpConfigPath != nil {
             let renderer = OutputRenderer()
             renderer.output.write("[MCP servers configured]\n")
+        }
+
+        if args.hooksConfigPath != nil {
+            let renderer = OutputRenderer()
+            renderer.output.write("[Hooks configured]\n")
         }
 
         // Handle --skill auto-invocation
@@ -129,9 +134,9 @@ enum CLI {
     }
 
     /// Create an Agent from parsed args, or print error to stderr and exit.
-    private static func createAgentOrExit(from args: ParsedArgs) -> (Agent, SessionStore) {
+    private static func createAgentOrExit(from args: ParsedArgs) async -> (Agent, SessionStore) {
         do {
-            return try AgentFactory.createAgent(from: args)
+            return try await AgentFactory.createAgent(from: args)
         } catch {
             let msg = "Error: \(error.localizedDescription)"
             FileHandle.standardError.write((msg + "\n").data(using: .utf8)!)

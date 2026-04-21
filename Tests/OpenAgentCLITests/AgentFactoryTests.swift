@@ -31,7 +31,8 @@ final class AgentFactoryTests: XCTestCase {
         thinking: Int? = nil,
         logLevel: String? = nil,
         toolAllow: [String]? = nil,
-        toolDeny: [String]? = nil
+        toolDeny: [String]? = nil,
+        hooksConfigPath: String? = nil
     ) -> ParsedArgs {
         ParsedArgs(
             helpRequested: false,
@@ -44,7 +45,7 @@ final class AgentFactoryTests: XCTestCase {
             mode: mode,
             tools: "core",
             mcpConfigPath: nil,
-            hooksConfigPath: nil,
+            hooksConfigPath: hooksConfigPath,
             skillDir: nil,
             skillName: nil,
             sessionId: nil,
@@ -67,32 +68,32 @@ final class AgentFactoryTests: XCTestCase {
 
     // MARK: - AC#1: Full params (api-key + base-url + model) -> Agent created
 
-    func testCreateAgent_fullParams_returnsAgent() throws {
+    func testCreateAgent_fullParams_returnsAgent() async throws {
         let args = makeArgs(
             apiKey: "sk-test-key",
             baseURL: "https://api.example.com/v1",
             model: "custom-model"
         )
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         XCTAssertNotNil(agent, "createAgent with full params should return a non-nil Agent")
     }
 
-    func testCreateAgent_fullParams_usesSpecifiedModel() throws {
+    func testCreateAgent_fullParams_usesSpecifiedModel() async throws {
         let args = makeArgs(
             apiKey: "sk-test-key",
             baseURL: "https://api.example.com/v1",
             model: "custom-model"
         )
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         XCTAssertEqual(agent.model, "custom-model",
             "Agent should use the model specified in ParsedArgs")
     }
 
-    func testCreateAgent_fullParams_usesSpecifiedBaseURL() throws {
+    func testCreateAgent_fullParams_usesSpecifiedBaseURL() async throws {
         let args = makeArgs(
             apiKey: "sk-test-key",
             baseURL: "https://custom-api.example.com/v1",
@@ -102,13 +103,13 @@ final class AgentFactoryTests: XCTestCase {
         // Verify the agent is created without errors when baseURL is provided.
         // The Agent doesn't expose baseURL as a public property, so we verify
         // that creation succeeds (it would throw if baseURL were rejected).
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent creation with custom baseURL should succeed")
     }
 
     // MARK: - AC#2: Missing --model -> default "glm-5.1"
 
-    func testCreateAgent_defaultModel_usesGLM() throws {
+    func testCreateAgent_defaultModel_usesGLM() async throws {
         // ParsedArgs.model default is "glm-5.1" -- no explicit --model passed
         let args = makeArgs(
             apiKey: "sk-test-key",
@@ -116,13 +117,13 @@ final class AgentFactoryTests: XCTestCase {
             model: "glm-5.1"  // This is the ParsedArgs default
         )
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         XCTAssertEqual(agent.model, "glm-5.1",
             "Agent should use 'glm-5.1' as default model when --model not specified")
     }
 
-    func testCreateAgent_explicitlyPassedGLM_usesGLM() throws {
+    func testCreateAgent_explicitlyPassedGLM_usesGLM() async throws {
         // Explicitly pass glm-5.1 (same as default, but explicitly chosen)
         let args = makeArgs(
             apiKey: "sk-test-key",
@@ -130,7 +131,7 @@ final class AgentFactoryTests: XCTestCase {
             model: "glm-5.1"
         )
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         XCTAssertEqual(agent.model, "glm-5.1",
             "Agent model should be glm-5.1 when explicitly passed")
@@ -138,7 +139,7 @@ final class AgentFactoryTests: XCTestCase {
 
     // MARK: - AC#3: API Key from environment variable
 
-    func testCreateAgent_apiKeyFromArgs_succeeds() throws {
+    func testCreateAgent_apiKeyFromArgs_succeeds() async throws {
         // When apiKey is provided via ParsedArgs (from --api-key or env var
         // already resolved by ArgumentParser), createAgent should succeed.
         let args = makeArgs(
@@ -147,11 +148,11 @@ final class AgentFactoryTests: XCTestCase {
             model: "glm-5.1"
         )
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent creation with API key should succeed")
     }
 
-    func testCreateAgent_apiKeyFromEnvVar_succeeds() throws {
+    func testCreateAgent_apiKeyFromEnvVar_succeeds() async throws {
         // Simulate what ArgumentParser does: resolve env var into ParsedArgs.apiKey
         setenv("OPENAGENT_API_KEY", "env-api-key-123", 1)
         defer { unsetenv("OPENAGENT_API_KEY") }
@@ -162,20 +163,23 @@ final class AgentFactoryTests: XCTestCase {
             "ArgumentParser should resolve OPENAGENT_API_KEY env var")
 
         // Verify createAgent succeeds with the resolved key
-        let agent = try AgentFactory.createAgent(from: parsedArgs).0
+        let agent = try await AgentFactory.createAgent(from: parsedArgs).0
         XCTAssertNotNil(agent, "Agent creation with env var resolved API key should succeed")
     }
 
     // MARK: - AC#4: Missing API Key -> error with clear message
 
-    func testCreateAgent_missingApiKey_throwsError() throws {
+    func testCreateAgent_missingApiKey_throwsError() async throws {
         let args = makeArgs(
             apiKey: nil,  // No API key
             baseURL: "https://api.example.com/v1",
             model: "glm-5.1"
         )
 
-        XCTAssertThrowsError(try AgentFactory.createAgent(from: args)) { error in
+        do {
+            _ = try await AgentFactory.createAgent(from: args)
+            XCTFail("Should throw when API key is missing")
+        } catch {
             // Verify the error is the expected type
             XCTAssertTrue(error is AgentFactoryError,
                 "Should throw AgentFactoryError when API key is missing")
@@ -186,10 +190,13 @@ final class AgentFactoryTests: XCTestCase {
         }
     }
 
-    func testCreateAgent_missingApiKey_errorIsActionable() throws {
+    func testCreateAgent_missingApiKey_errorIsActionable() async throws {
         let args = makeArgs(apiKey: nil)
 
-        XCTAssertThrowsError(try AgentFactory.createAgent(from: args)) { error in
+        do {
+            _ = try await AgentFactory.createAgent(from: args)
+            XCTFail("Should throw when API key is missing")
+        } catch {
             let message = error.localizedDescription.lowercased()
             // Error should be actionable: tell user what to do
             let hasApiKeyGuidance = message.contains("--api-key") || message.contains("openagent_api_key")
@@ -198,27 +205,33 @@ final class AgentFactoryTests: XCTestCase {
         }
     }
 
-    func testCreateAgent_emptyApiKey_throwsError() throws {
+    func testCreateAgent_emptyApiKey_throwsError() async throws {
         let args = makeArgs(
             apiKey: "",  // Empty string should be treated as missing
             baseURL: "https://api.example.com/v1",
             model: "glm-5.1"
         )
 
-        XCTAssertThrowsError(try AgentFactory.createAgent(from: args)) { error in
+        do {
+            _ = try await AgentFactory.createAgent(from: args)
+            XCTFail("Should throw when API key is empty string")
+        } catch {
             XCTAssertTrue(error is AgentFactoryError,
                 "Should throw AgentFactoryError when API key is empty string")
         }
     }
 
-    func testCreateAgent_whitespaceApiKey_throwsError() throws {
+    func testCreateAgent_whitespaceApiKey_throwsError() async throws {
         let args = makeArgs(
             apiKey: "   ",  // Whitespace-only should be treated as missing
             baseURL: "https://api.example.com/v1",
             model: "glm-5.1"
         )
 
-        XCTAssertThrowsError(try AgentFactory.createAgent(from: args)) { error in
+        do {
+            _ = try await AgentFactory.createAgent(from: args)
+            XCTFail("Should throw when API key is whitespace-only")
+        } catch {
             XCTAssertTrue(error is AgentFactoryError,
                 "Should throw AgentFactoryError when API key is whitespace-only")
         }
@@ -226,19 +239,19 @@ final class AgentFactoryTests: XCTestCase {
 
     // MARK: - AC#5: --max-turns and --max-budget passed through
 
-    func testCreateAgent_maxTurns_passedToAgent() throws {
+    func testCreateAgent_maxTurns_passedToAgent() async throws {
         let args = makeArgs(
             apiKey: "sk-test",
             maxTurns: 5
         )
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         XCTAssertEqual(agent.maxTurns, 5,
             "Agent should use maxTurns=5 from ParsedArgs")
     }
 
-    func testCreateAgent_maxBudget_passedThrough() throws {
+    func testCreateAgent_maxBudget_passedThrough() async throws {
         let args = makeArgs(
             apiKey: "sk-test",
             maxBudgetUsd: 1.0
@@ -246,17 +259,17 @@ final class AgentFactoryTests: XCTestCase {
 
         // maxBudgetUsd is not exposed on Agent as a public property,
         // but the creation should succeed without errors.
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent creation with maxBudgetUsd should succeed")
     }
 
-    func testCreateAgent_maxTurnsDefault_isTen() throws {
+    func testCreateAgent_maxTurnsDefault_isTen() async throws {
         let args = makeArgs(
             apiKey: "sk-test",
             maxTurns: 10  // ParsedArgs default
         )
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         XCTAssertEqual(agent.maxTurns, 10,
             "Default maxTurns should be 10")
@@ -291,34 +304,37 @@ final class AgentFactoryTests: XCTestCase {
 
     // MARK: - Provider conversion tests
 
-    func testCreateAgent_providerAnthropic_succeeds() throws {
+    func testCreateAgent_providerAnthropic_succeeds() async throws {
         let args = makeArgs(
             apiKey: "sk-test",
             provider: "anthropic"
         )
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent with provider 'anthropic' should be created")
     }
 
-    func testCreateAgent_providerOpenAI_succeeds() throws {
+    func testCreateAgent_providerOpenAI_succeeds() async throws {
         let args = makeArgs(
             apiKey: "sk-test",
             baseURL: "https://api.openai.com/v1",
             provider: "openai"
         )
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent with provider 'openai' should be created")
     }
 
-    func testCreateAgent_invalidProvider_throwsError() throws {
+    func testCreateAgent_invalidProvider_throwsError() async throws {
         let args = makeArgs(
             apiKey: "sk-test",
             provider: "invalid_provider"
         )
 
-        XCTAssertThrowsError(try AgentFactory.createAgent(from: args)) { error in
+        do {
+            _ = try await AgentFactory.createAgent(from: args)
+            XCTFail("Should throw for invalid provider")
+        } catch {
             XCTAssertTrue(error is AgentFactoryError,
                 "Should throw AgentFactoryError for invalid provider")
             let message = error.localizedDescription
@@ -327,47 +343,50 @@ final class AgentFactoryTests: XCTestCase {
         }
     }
 
-    func testCreateAgent_noProvider_defaultsToAnthropic() throws {
+    func testCreateAgent_noProvider_defaultsToAnthropic() async throws {
         let args = makeArgs(
             apiKey: "sk-test",
             provider: nil  // No provider specified
         )
 
         // Should succeed with default provider (anthropic)
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent with no provider should default to anthropic")
     }
 
     // MARK: - Permission mode conversion tests
 
-    func testCreateAgent_modeDefault_succeeds() throws {
+    func testCreateAgent_modeDefault_succeeds() async throws {
         let args = makeArgs(apiKey: "sk-test", mode: "default")
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent)
     }
 
-    func testCreateAgent_modeBypassPermissions_succeeds() throws {
+    func testCreateAgent_modeBypassPermissions_succeeds() async throws {
         let args = makeArgs(apiKey: "sk-test", mode: "bypassPermissions")
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent)
     }
 
-    func testCreateAgent_modePlan_succeeds() throws {
+    func testCreateAgent_modePlan_succeeds() async throws {
         let args = makeArgs(apiKey: "sk-test", mode: "plan")
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent)
     }
 
-    func testCreateAgent_modeAuto_succeeds() throws {
+    func testCreateAgent_modeAuto_succeeds() async throws {
         let args = makeArgs(apiKey: "sk-test", mode: "auto")
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent)
     }
 
-    func testCreateAgent_invalidMode_throwsError() throws {
+    func testCreateAgent_invalidMode_throwsError() async throws {
         let args = makeArgs(apiKey: "sk-test", mode: "invalidMode")
 
-        XCTAssertThrowsError(try AgentFactory.createAgent(from: args)) { error in
+        do {
+            _ = try await AgentFactory.createAgent(from: args)
+            XCTFail("Should throw for invalid mode")
+        } catch {
             XCTAssertTrue(error is AgentFactoryError,
                 "Should throw AgentFactoryError for invalid mode")
         }
@@ -375,89 +394,89 @@ final class AgentFactoryTests: XCTestCase {
 
     // MARK: - Thinking config conversion tests
 
-    func testCreateAgent_thinkingEnabled_createsAgent() throws {
+    func testCreateAgent_thinkingEnabled_createsAgent() async throws {
         let args = makeArgs(
             apiKey: "sk-test",
             thinking: 8192
         )
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent with thinking config should be created")
     }
 
-    func testCreateAgent_thinkingNil_noThinking() throws {
+    func testCreateAgent_thinkingNil_noThinking() async throws {
         let args = makeArgs(
             apiKey: "sk-test",
             thinking: nil
         )
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent without thinking config should be created")
     }
 
     // MARK: - Tool allow/deny pass-through tests
 
-    func testCreateAgent_toolAllowPassed_createsAgent() throws {
+    func testCreateAgent_toolAllowPassed_createsAgent() async throws {
         let args = makeArgs(
             apiKey: "sk-test",
             toolAllow: ["Bash", "Read", "Write"]
         )
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent with allowedTools should be created")
     }
 
-    func testCreateAgent_toolDenyPassed_createsAgent() throws {
+    func testCreateAgent_toolDenyPassed_createsAgent() async throws {
         let args = makeArgs(
             apiKey: "sk-test",
             toolDeny: ["Edit", "Delete"]
         )
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent with disallowedTools should be created")
     }
 
-    func testCreateAgent_toolAllowAndDeny_createsAgent() throws {
+    func testCreateAgent_toolAllowAndDeny_createsAgent() async throws {
         let args = makeArgs(
             apiKey: "sk-test",
             toolAllow: ["Bash", "Read"],
             toolDeny: ["Write"]
         )
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent, "Agent with both allowedTools and disallowedTools should be created")
     }
 
     // MARK: - System prompt pass-through tests
 
-    func testCreateAgent_systemPrompt_createsAgent() throws {
+    func testCreateAgent_systemPrompt_createsAgent() async throws {
         let args = makeArgs(
             apiKey: "sk-test",
             systemPrompt: "You are a helpful coding assistant."
         )
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertEqual(agent.systemPrompt, "You are a helpful coding assistant.",
             "Agent should use the system prompt from ParsedArgs")
     }
 
-    func testCreateAgent_nilSystemPrompt_createsAgent() throws {
+    func testCreateAgent_nilSystemPrompt_createsAgent() async throws {
         let args = makeArgs(
             apiKey: "sk-test",
             systemPrompt: nil
         )
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertNil(agent.systemPrompt,
             "Agent systemPrompt should be nil when not provided")
     }
 
     // MARK: - cwd (current working directory) tests
 
-    func testCreateAgent_setsCwd() throws {
+    func testCreateAgent_setsCwd() async throws {
         let args = makeArgs(apiKey: "sk-test")
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
         // Agent doesn't expose cwd as a public property, but creation should succeed
         // with cwd set to FileManager.default.currentDirectoryPath
         XCTAssertNotNil(agent)
@@ -465,7 +484,7 @@ final class AgentFactoryTests: XCTestCase {
 
     // MARK: - Integration: Full pipeline from CLI args to Agent
 
-    func testFullPipeline_apiKeyAndModel_argsToAgent() throws {
+    func testFullPipeline_apiKeyAndModel_argsToAgent() async throws {
         // Simulate the full pipeline: raw CLI args -> ArgumentParser -> AgentFactory -> Agent
         let parsedArgs = ArgumentParser.parse([
             "openagent",
@@ -479,12 +498,12 @@ final class AgentFactoryTests: XCTestCase {
         XCTAssertEqual(parsedArgs.maxTurns, 3)
         XCTAssertFalse(parsedArgs.shouldExit)
 
-        let agent = try AgentFactory.createAgent(from: parsedArgs).0
+        let agent = try await AgentFactory.createAgent(from: parsedArgs).0
         XCTAssertEqual(agent.model, "glm-5.1")
         XCTAssertEqual(agent.maxTurns, 3)
     }
 
-    func testFullPipeline_missingApiKey_argsThrowAtFactory() throws {
+    func testFullPipeline_missingApiKey_argsThrowAtFactory() async throws {
         // Ensure env var is not set
         unsetenv("OPENAGENT_API_KEY")
 
@@ -492,13 +511,16 @@ final class AgentFactoryTests: XCTestCase {
 
         XCTAssertNil(parsedArgs.apiKey, "No API key from args or env")
 
-        XCTAssertThrowsError(try AgentFactory.createAgent(from: parsedArgs)) { error in
+        do {
+            _ = try await AgentFactory.createAgent(from: parsedArgs)
+            XCTFail("Should throw when API key is missing in full pipeline")
+        } catch {
             XCTAssertTrue(error is AgentFactoryError,
                 "Factory should throw when API key is missing in full pipeline")
         }
     }
 
-    func testFullPipeline_envVarKey_resolvedByParser() throws {
+    func testFullPipeline_envVarKey_resolvedByParser() async throws {
         setenv("OPENAGENT_API_KEY", "env-resolved-key", 1)
         defer { unsetenv("OPENAGENT_API_KEY") }
 
@@ -508,13 +530,13 @@ final class AgentFactoryTests: XCTestCase {
             "Parser should resolve OPENAGENT_API_KEY into ParsedArgs.apiKey")
 
         // Factory should succeed with the resolved key
-        let agent = try AgentFactory.createAgent(from: parsedArgs).0
+        let agent = try await AgentFactory.createAgent(from: parsedArgs).0
         XCTAssertNotNil(agent, "Agent should be created with env var resolved API key")
     }
 
     // MARK: - Combined configuration test
 
-    func testCreateAgent_allOptionsCombined_createsAgent() throws {
+    func testCreateAgent_allOptionsCombined_createsAgent() async throws {
         let args = ParsedArgs(
             helpRequested: false,
             versionRequested: false,
@@ -546,11 +568,95 @@ final class AgentFactoryTests: XCTestCase {
             helpMessage: nil
         )
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         XCTAssertEqual(agent.model, "glm-5.1")
         XCTAssertEqual(agent.maxTurns, 5)
         XCTAssertEqual(agent.systemPrompt, "Be concise")
         XCTAssertNotNil(agent, "Agent with all combined options should be created")
     }
+
+    // MARK: - ATDD Red Phase: Story 6.1 Hook System Integration
+    //
+    // Acceptance Criteria Coverage:
+    //   AC#1: Hooks config JSON -> hooks registered via createHookRegistry()
+    //   AC#2: preToolUse hook -> hook script executes before tool runs
+    //   AC#3: Hook timeout/error -> warning logged, agent operation continues
+
+    // MARK: - AC#1: Hook config integration with AgentFactory
+
+    /// AC#1: When no --hooks flag is provided, createAgent should succeed
+    /// and hookRegistry should not be configured (no hooks loaded).
+    func testCreateAgent_noHooks_hookRegistryNotConfigured() async throws {
+        let args = makeArgs(hooksConfigPath: nil)
+
+        let (agent, _) = try await AgentFactory.createAgent(from: args)
+        XCTAssertNotNil(agent,
+            "Agent creation should succeed without hooks config")
+    }
+
+    /// AC#1: When --hooks flag is provided with a valid config path,
+    /// createAgent should succeed and load the hooks config into AgentOptions.
+    func testCreateAgent_withHooks_agentCreated() async throws {
+        // Create a valid hooks config file
+        let json = """
+        {
+          "hooks": {
+            "preToolUse": [
+              { "command": "echo 'before tool'" }
+            ]
+          }
+        }
+        """
+        let dir = NSTemporaryDirectory()
+        let configPath = dir + "hooks_test_agent_\(UUID().uuidString).json"
+        try json.write(toFile: configPath, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: configPath) }
+
+        let args = makeArgs(hooksConfigPath: configPath)
+
+        let (agent, _) = try await AgentFactory.createAgent(from: args)
+        XCTAssertNotNil(agent,
+            "Agent creation should succeed with valid hooks config")
+    }
+
+    /// AC#1: When --hooks flag is provided with an invalid path,
+    /// createAgent should throw a clear error.
+    func testCreateAgent_withInvalidHooksPath_throwsError() async throws {
+        let nonexistentPath = "/tmp/nonexistent_hooks_\(UUID().uuidString).json"
+        let args = makeArgs(hooksConfigPath: nonexistentPath)
+
+        // Should throw because hooks file doesn't exist
+        do {
+            _ = try await AgentFactory.createAgent(from: args)
+            XCTFail("Should throw when hooks file not found")
+        } catch {
+            let message = error.localizedDescription.lowercased()
+            XCTAssertTrue(
+                message.contains("not found") || message.contains("hooks") || message.contains("file"),
+                "Error should mention file not found: \(message)")
+        }
+    }
+
+    /// AC#1: When --hooks flag is provided with invalid JSON,
+    /// createAgent should throw a descriptive error.
+    func testCreateAgent_withInvalidHooksJSON_throwsError() async throws {
+        let json = "not valid json"
+        let dir = NSTemporaryDirectory()
+        let configPath = dir + "hooks_invalid_\(UUID().uuidString).json"
+        try json.write(toFile: configPath, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: configPath) }
+
+        let args = makeArgs(hooksConfigPath: configPath)
+
+        do {
+            _ = try await AgentFactory.createAgent(from: args)
+            XCTFail("Should throw for invalid hooks JSON")
+        } catch {
+            let message = error.localizedDescription
+            XCTAssertTrue(message.count > 0,
+                "Error for invalid hooks JSON should be descriptive: \(message)")
+        }
+    }
+
 }

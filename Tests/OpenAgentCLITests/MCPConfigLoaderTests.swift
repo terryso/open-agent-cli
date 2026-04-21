@@ -361,18 +361,18 @@ final class MCPConfigLoaderTests: XCTestCase {
 
     /// AC#2: When no --mcp flag is provided, createAgent should succeed without MCP servers.
     /// mcpServers in AgentOptions should be nil (no MCP config loaded).
-    func testCreateAgent_withoutMcp_mcpServersIsNil() throws {
+    func testCreateAgent_withoutMcp_mcpServersIsNil() async throws {
         let args = makeArgs(mcpConfigPath: nil)
 
         // Should succeed without any MCP config
-        let (agent, _) = try AgentFactory.createAgent(from: args)
+        let (agent, _) = try await AgentFactory.createAgent(from: args)
         XCTAssertNotNil(agent,
             "Agent creation should succeed without MCP config")
     }
 
     /// AC#1, #2: When --mcp flag is provided with a valid config path,
     /// createAgent should succeed and load the MCP config into AgentOptions.mcpServers.
-    func testCreateAgent_withMcp_mcpServersPopulated() throws {
+    func testCreateAgent_withMcp_mcpServersPopulated() async throws {
         // Create a valid MCP config file
         let json = """
         {
@@ -390,7 +390,7 @@ final class MCPConfigLoaderTests: XCTestCase {
         let args = makeArgs(mcpConfigPath: configPath)
 
         // Should succeed with MCP config loaded
-        let (agent, _) = try AgentFactory.createAgent(from: args)
+        let (agent, _) = try await AgentFactory.createAgent(from: args)
         XCTAssertNotNil(agent,
             "Agent creation should succeed with valid MCP config")
     }

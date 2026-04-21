@@ -137,11 +137,11 @@ final class ToolLoadingTests: XCTestCase {
 
     // MARK: - AC#1 Integration: createAgent with default tools loads core
 
-    func testCreateAgent_defaultTools_loadsCoreTools() throws {
+    func testCreateAgent_defaultTools_loadsCoreTools() async throws {
         // AC#1: Default ParsedArgs.tools="core" should result in an agent with core tools
         let args = makeArgs(tools: "core")
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         // Agent should be created successfully with tools loaded
         XCTAssertNotNil(agent, "Agent with core tools should be created (AC#1)")
@@ -203,22 +203,22 @@ final class ToolLoadingTests: XCTestCase {
 
     // MARK: - AC#2 Integration: createAgent with advanced tools
 
-    func testCreateAgent_advancedTools_createsAgent() throws {
+    func testCreateAgent_advancedTools_createsAgent() async throws {
         // AC#2: Agent creation with --tools advanced should succeed
         let args = makeArgs(tools: "advanced")
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         XCTAssertNotNil(agent, "Agent with advanced tools should be created (AC#2)")
     }
 
     // MARK: - AC#3 Integration: createAgent with all tools
 
-    func testCreateAgent_allTools_createsAgent() throws {
+    func testCreateAgent_allTools_createsAgent() async throws {
         // AC#3: Agent creation with --tools all should succeed
         let args = makeArgs(tools: "all")
 
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         XCTAssertNotNil(agent, "Agent with all tools should be created (AC#3)")
     }

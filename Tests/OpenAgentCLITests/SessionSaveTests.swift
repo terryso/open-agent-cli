@@ -60,18 +60,18 @@ final class SessionSaveTests: XCTestCase {
 
     // MARK: - AC#1: Session is saved when CLI exits (SessionStore injected into AgentOptions)
 
-    func testCreateAgent_injectsSessionStore_intoAgentOptions() throws {
+    func testCreateAgent_injectsSessionStore_intoAgentOptions() async throws {
         // AC#1: createAgent should inject a SessionStore instance into AgentOptions.
         // Since Agent doesn't expose sessionStore as a public property, we verify
         // that Agent creation succeeds when SessionStore is expected to be configured.
         let args = makeArgs()
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         // Agent should be created successfully with session config
         XCTAssertNotNil(agent, "Agent should be created with SessionStore injected")
     }
 
-    func testCreateAgent_generatesUUID_whenNoSessionId() throws {
+    func testCreateAgent_generatesUUID_whenNoSessionId() async throws {
         // AC#1: When no --session flag is provided, AgentFactory should generate a UUID sessionId
         // (or return nil for auto-restore mode when noRestore is false).
         // Verify by using --no-restore to force UUID generation.
@@ -108,11 +108,11 @@ final class SessionSaveTests: XCTestCase {
             "UUID string should be 36 characters (32 hex + 4 dashes): \(resolved!)")
     }
 
-    func testCreateAgent_sessionStoreEnabled_agentCreated() throws {
+    func testCreateAgent_sessionStoreEnabled_agentCreated() async throws {
         // AC#1: Agent creation succeeds with sessionStore configured.
         // After implementation, the Agent should have SessionStore injected.
         let args = makeArgs()
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         XCTAssertNotNil(agent, "Agent should be created with SessionStore enabled")
     }
@@ -125,7 +125,7 @@ final class SessionSaveTests: XCTestCase {
         // AgentOptions doesn't currently expose; tracked as future improvement.
         let sessionId = UUID().uuidString
         let args = makeArgs(sessionId: sessionId)
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         // Close the agent - this should trigger session save without error
         try await agent.close()
@@ -137,7 +137,7 @@ final class SessionSaveTests: XCTestCase {
         // AC#1: Single-shot mode exit path calls agent.close().
         // Verify by creating an agent and confirming close() doesn't throw.
         let args = makeArgs()
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         // Should not throw
         try await agent.close()
@@ -150,7 +150,7 @@ final class SessionSaveTests: XCTestCase {
         // Verify that close() can throw but the CLI handles it gracefully.
         // After implementation, CLI.swift should use do/catch around agent.close().
         let args = makeArgs()
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         // close() should either succeed or throw - both are acceptable
         // The CLI layer must handle both cases
@@ -164,21 +164,21 @@ final class SessionSaveTests: XCTestCase {
 
     // MARK: - AC#3: --no-restore does not affect auto-save
 
-    func testCreateAgent_noRestoreFlag_sessionStillActive() throws {
+    func testCreateAgent_noRestoreFlag_sessionStillActive() async throws {
         // AC#3: --no-restore flag should NOT disable auto-save.
         // persistSession should always be true regardless of --no-restore.
         let args = makeArgs(noRestore: true)
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         // Agent should still be created successfully
         // After implementation, the AgentOptions should have persistSession = true
         XCTAssertNotNil(agent, "Agent should be created even with --no-restore")
     }
 
-    func testCreateAgent_noRestoreFalse_sessionActive() throws {
+    func testCreateAgent_noRestoreFalse_sessionActive() async throws {
         // AC#3: Without --no-restore, session auto-save is also active (default behavior).
         let args = makeArgs(noRestore: false)
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         XCTAssertNotNil(agent, "Agent should be created without --no-restore")
     }
@@ -197,7 +197,7 @@ final class SessionSaveTests: XCTestCase {
         XCTAssertNotNil(idDefault, "Default mode also generates UUID; createAgent overrides to nil for auto-restore")
     }
 
-    func testCreateAgent_persistSession_alwaysTrue_withRestore() throws {
+    func testCreateAgent_persistSession_alwaysTrue_withRestore() async throws {
         // AC#3: persistSession should be true even when --no-restore is set.
         // Since persistSession is not a public property on Agent, we verify
         // that agent creation succeeds (it would fail if persistSession were false
@@ -205,8 +205,8 @@ final class SessionSaveTests: XCTestCase {
         let argsWithRestore = makeArgs(noRestore: false)
         let argsNoRestore = makeArgs(noRestore: true)
 
-        let agentWithRestore = try AgentFactory.createAgent(from: argsWithRestore).0
-        let agentNoRestore = try AgentFactory.createAgent(from: argsNoRestore).0
+        let agentWithRestore = try await AgentFactory.createAgent(from: argsWithRestore).0
+        let agentNoRestore = try await AgentFactory.createAgent(from: argsNoRestore).0
 
         XCTAssertNotNil(agentWithRestore, "Agent with restore should be created")
         XCTAssertNotNil(agentNoRestore, "Agent with --no-restore should be created")
@@ -250,25 +250,25 @@ final class SessionSaveTests: XCTestCase {
 
     // MARK: - Regression: AgentFactory behavior unchanged for non-session features
 
-    func testCreateAgent_withSessionConfig_modelStillCorrect() throws {
+    func testCreateAgent_withSessionConfig_modelStillCorrect() async throws {
         // Regression: model should still be correctly passed through
         let args = makeArgs(model: "custom-model-v2")
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         XCTAssertEqual(agent.model, "custom-model-v2",
             "Model should still be passed through correctly with session config")
     }
 
-    func testCreateAgent_withSessionConfig_maxTurnsStillCorrect() throws {
+    func testCreateAgent_withSessionConfig_maxTurnsStillCorrect() async throws {
         // Regression: maxTurns should still be correctly passed through
         let args = makeArgs(maxTurns: 7)
-        let agent = try AgentFactory.createAgent(from: args).0
+        let agent = try await AgentFactory.createAgent(from: args).0
 
         XCTAssertEqual(agent.maxTurns, 7,
             "maxTurns should still be passed through correctly with session config")
     }
 
-    func testCreateAgent_withSessionConfig_systemPromptStillCorrect() throws {
+    func testCreateAgent_withSessionConfig_systemPromptStillCorrect() async throws {
         // Regression: systemPrompt should still be correctly passed through
         // systemPrompt is set via ParsedArgs init - create with explicit value
         let argsWithPrompt = ParsedArgs(
@@ -301,7 +301,7 @@ final class SessionSaveTests: XCTestCase {
             errorMessage: nil,
             helpMessage: nil
         )
-        let agent = try AgentFactory.createAgent(from: argsWithPrompt).0
+        let agent = try await AgentFactory.createAgent(from: argsWithPrompt).0
 
         XCTAssertEqual(agent.systemPrompt, "Be helpful",
             "systemPrompt should still be passed through correctly with session config")
@@ -320,7 +320,7 @@ final class SessionSaveTests: XCTestCase {
 
     // MARK: - Full pipeline: ArgumentParser -> AgentFactory with session args
 
-    func testFullPipeline_sessionArg_agentCreated() throws {
+    func testFullPipeline_sessionArg_agentCreated() async throws {
         // Full pipeline: --session <id> -> ArgumentParser -> AgentFactory -> Agent
         setenv("OPENAGENT_API_KEY", "pipeline-test-key", 1)
         defer { unsetenv("OPENAGENT_API_KEY") }
@@ -328,11 +328,11 @@ final class SessionSaveTests: XCTestCase {
         let parsedArgs = ArgumentParser.parse(["openagent", "--session", "pipeline-session-1"])
         XCTAssertEqual(parsedArgs.sessionId, "pipeline-session-1")
 
-        let agent = try AgentFactory.createAgent(from: parsedArgs).0
+        let agent = try await AgentFactory.createAgent(from: parsedArgs).0
         XCTAssertNotNil(agent, "Agent should be created from full pipeline with --session")
     }
 
-    func testFullPipeline_noSessionArg_agentCreated() throws {
+    func testFullPipeline_noSessionArg_agentCreated() async throws {
         // Full pipeline: no --session -> ArgumentParser -> AgentFactory -> Agent (with generated UUID)
         setenv("OPENAGENT_API_KEY", "pipeline-test-key-2", 1)
         defer { unsetenv("OPENAGENT_API_KEY") }
@@ -340,11 +340,11 @@ final class SessionSaveTests: XCTestCase {
         let parsedArgs = ArgumentParser.parse(["openagent"])
         XCTAssertNil(parsedArgs.sessionId, "No --session means sessionId is nil in ParsedArgs")
 
-        let agent = try AgentFactory.createAgent(from: parsedArgs).0
+        let agent = try await AgentFactory.createAgent(from: parsedArgs).0
         XCTAssertNotNil(agent, "Agent should be created even without --session (UUID generated)")
     }
 
-    func testFullPipeline_noRestoreArg_agentCreated() throws {
+    func testFullPipeline_noRestoreArg_agentCreated() async throws {
         // Full pipeline: --no-restore -> AgentFactory -> Agent
         setenv("OPENAGENT_API_KEY", "pipeline-test-key-3", 1)
         defer { unsetenv("OPENAGENT_API_KEY") }
@@ -352,7 +352,7 @@ final class SessionSaveTests: XCTestCase {
         let parsedArgs = ArgumentParser.parse(["openagent", "--no-restore"])
         XCTAssertTrue(parsedArgs.noRestore, "--no-restore should be true")
 
-        let agent = try AgentFactory.createAgent(from: parsedArgs).0
+        let agent = try await AgentFactory.createAgent(from: parsedArgs).0
         XCTAssertNotNil(agent, "Agent should be created with --no-restore")
     }
 }

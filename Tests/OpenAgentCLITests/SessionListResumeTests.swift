@@ -24,7 +24,7 @@ final class SessionListResumeTests: XCTestCase {
     }
 
     /// Creates a test Agent with a dummy API key.
-    private func makeTestAgent() throws -> Agent {
+    private func makeTestAgent() async throws -> Agent {
         let args = ParsedArgs(
             helpRequested: false,
             versionRequested: false,
@@ -55,7 +55,7 @@ final class SessionListResumeTests: XCTestCase {
             errorMessage: nil,
             helpMessage: nil
         )
-        return try AgentFactory.createAgent(from: args).0
+        return try await AgentFactory.createAgent(from: args).0
     }
 
     /// Creates a temporary directory for session storage in tests.
@@ -84,7 +84,7 @@ final class SessionListResumeTests: XCTestCase {
         let sessionStore = SessionStore(sessionsDir: tempDir.path)
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             sessionStore: sessionStore
@@ -140,7 +140,7 @@ final class SessionListResumeTests: XCTestCase {
             helpMessage: nil
         )
         // Use createAgent which now returns (Agent, SessionStore)
-        let (agent, _) = try AgentFactory.createAgent(from: args)
+        let (agent, _) = try await AgentFactory.createAgent(from: args)
         try await agent.close()
 
         // Now list sessions using our temp-dir store
@@ -151,7 +151,7 @@ final class SessionListResumeTests: XCTestCase {
 
         // Use the default store for the REPL
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             sessionStore: defaultStore
@@ -179,7 +179,7 @@ final class SessionListResumeTests: XCTestCase {
         let sessionStore = SessionStore(sessionsDir: tempDir.path)
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             sessionStore: sessionStore
@@ -209,7 +209,7 @@ final class SessionListResumeTests: XCTestCase {
             logLevel: nil, toolAllow: nil, toolDeny: nil,
             shouldExit: false, exitCode: 0, errorMessage: nil, helpMessage: nil
         )
-        let (agent, _) = try AgentFactory.createAgent(from: args)
+        let (agent, _) = try await AgentFactory.createAgent(from: args)
         try await agent.close()
 
         // Use the default SessionStore (same one AgentFactory saves to)
@@ -217,7 +217,7 @@ final class SessionListResumeTests: XCTestCase {
         let inputReader = MockInputReader(["/resume \(sessionId)", "/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             sessionStore: defaultStore,
@@ -241,7 +241,7 @@ final class SessionListResumeTests: XCTestCase {
         let sessionStore = SessionStore(sessionsDir: tempDir.path)
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             sessionStore: sessionStore
@@ -265,7 +265,7 @@ final class SessionListResumeTests: XCTestCase {
         let sessionStore = SessionStore(sessionsDir: tempDir.path)
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             sessionStore: sessionStore
@@ -288,7 +288,7 @@ final class SessionListResumeTests: XCTestCase {
         let sessionStore = SessionStore(sessionsDir: tempDir.path)
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             sessionStore: sessionStore
@@ -313,7 +313,7 @@ final class SessionListResumeTests: XCTestCase {
         let sessionStore = SessionStore(sessionsDir: tempDir.path)
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             sessionStore: sessionStore
@@ -336,7 +336,7 @@ final class SessionListResumeTests: XCTestCase {
         let sessionStore = SessionStore(sessionsDir: tempDir.path)
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             sessionStore: sessionStore
@@ -351,7 +351,7 @@ final class SessionListResumeTests: XCTestCase {
 
     // MARK: - AgentFactory returns SessionStore
 
-    func testCreateAgent_returnsSessionStore() throws {
+    func testCreateAgent_returnsSessionStore() async throws {
         // AC#1, AC#2: createAgent should return SessionStore alongside Agent
         // so that CLI layer can pass it to REPLLoop
         let args = ParsedArgs(
@@ -386,7 +386,7 @@ final class SessionListResumeTests: XCTestCase {
         )
 
         // After implementation, createAgent returns (Agent, SessionStore)
-        let (agent, sessionStore) = try AgentFactory.createAgent(from: args)
+        let (agent, sessionStore) = try await AgentFactory.createAgent(from: args)
 
         XCTAssertNotNil(agent, "createAgent should return a non-nil Agent")
         XCTAssertNotNil(sessionStore, "createAgent should return a non-nil SessionStore")
@@ -405,7 +405,7 @@ final class SessionListResumeTests: XCTestCase {
 
         // After implementation, REPLLoop init accepts sessionStore parameter
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             sessionStore: sessionStore
@@ -426,7 +426,7 @@ final class SessionListResumeTests: XCTestCase {
         let inputReader = MockInputReader(["/exit"])
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader
         )
@@ -439,7 +439,7 @@ final class SessionListResumeTests: XCTestCase {
 
     // MARK: - Regression: AgentFactory behavior unchanged for non-session features
 
-    func testCreateAgent_withSessionStoreReturn_modelStillCorrect() throws {
+    func testCreateAgent_withSessionStoreReturn_modelStillCorrect() async throws {
         // Regression: model should still be correctly passed through
         let args = ParsedArgs(
             helpRequested: false,
@@ -472,13 +472,13 @@ final class SessionListResumeTests: XCTestCase {
             helpMessage: nil
         )
 
-        let (agent, _) = try AgentFactory.createAgent(from: args)
+        let (agent, _) = try await AgentFactory.createAgent(from: args)
 
         XCTAssertEqual(agent.model, "custom-model-v3",
             "Model should still be passed through correctly with tuple return")
     }
 
-    func testCreateAgent_withSessionStoreReturn_maxTurnsStillCorrect() throws {
+    func testCreateAgent_withSessionStoreReturn_maxTurnsStillCorrect() async throws {
         // Regression: maxTurns should still be correctly passed through
         let args = ParsedArgs(
             helpRequested: false,
@@ -511,7 +511,7 @@ final class SessionListResumeTests: XCTestCase {
             helpMessage: nil
         )
 
-        let (agent, _) = try AgentFactory.createAgent(from: args)
+        let (agent, _) = try await AgentFactory.createAgent(from: args)
 
         XCTAssertEqual(agent.maxTurns, 7,
             "maxTurns should still be passed through correctly with tuple return")

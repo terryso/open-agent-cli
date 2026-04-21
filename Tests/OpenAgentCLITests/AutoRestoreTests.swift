@@ -75,7 +75,7 @@ final class AutoRestoreTests: XCTestCase {
     }
 
     /// Creates a test Agent with a dummy API key.
-    private func makeTestAgent() throws -> Agent {
+    private func makeTestAgent() async throws -> Agent {
         let args = ParsedArgs(
             helpRequested: false,
             versionRequested: false,
@@ -106,7 +106,7 @@ final class AutoRestoreTests: XCTestCase {
             errorMessage: nil,
             helpMessage: nil
         )
-        return try AgentFactory.createAgent(from: args).0
+        return try await AgentFactory.createAgent(from: args).0
     }
 
     /// Creates a temporary directory for session storage in tests.
@@ -124,7 +124,7 @@ final class AutoRestoreTests: XCTestCase {
 
     // MARK: - AC#1: Default REPL mode auto-restores last session
 
-    func testCreateAgent_default_setsContinueRecentSession() throws {
+    func testCreateAgent_default_setsContinueRecentSession() async throws {
         // AC#1: When no --session and no --no-restore, createAgent should configure
         // the Agent to auto-restore the most recent session.
         // This is verified by checking that the Agent can be created with the
@@ -134,7 +134,7 @@ final class AutoRestoreTests: XCTestCase {
         // After implementation: createAgent should pass sessionId: nil and
         // continueRecentSession: true to AgentOptions, letting the SDK resolve
         // the most recent session automatically.
-        let (agent, _) = try AgentFactory.createAgent(from: args)
+        let (agent, _) = try await AgentFactory.createAgent(from: args)
 
         // The agent is created successfully -- the actual continueRecentSession
         // behavior is verified at runtime when the first prompt/stream call happens.
@@ -142,7 +142,7 @@ final class AutoRestoreTests: XCTestCase {
         XCTAssertNotNil(agent, "Agent should be created with auto-restore configuration")
     }
 
-    func testCreateAgent_default_sessionIdIsNil() throws {
+    func testCreateAgent_default_sessionIdIsNil() async throws {
         // AC#1: In auto-restore mode (REPL, no --session, no --no-restore),
         // the agent should be created with continueRecentSession=true.
         // Since AgentOptions is not public, we verify the agent is created
@@ -154,13 +154,13 @@ final class AutoRestoreTests: XCTestCase {
         XCTAssertNotNil(sessionId, "resolveSessionId returns UUID; createAgent handles nil override")
 
         // Verify agent creation succeeds with auto-restore configuration
-        let (agent, _) = try AgentFactory.createAgent(from: args)
+        let (agent, _) = try await AgentFactory.createAgent(from: args)
         XCTAssertNotNil(agent, "Agent should be created with auto-restore configuration")
     }
 
     // MARK: - AC#2: --session <id> loads specified session
 
-    func testCreateAgent_withSession_setsExplicitSessionId() throws {
+    func testCreateAgent_withSession_setsExplicitSessionId() async throws {
         // AC#2: When --session <id> is provided, the specified session ID should
         // be used (not auto-restore).
         let explicitId = "explicit-session-123"
@@ -172,14 +172,14 @@ final class AutoRestoreTests: XCTestCase {
             "When --session is provided, resolveSessionId should return the explicit ID")
     }
 
-    func testCreateAgent_withSession_continueRecentSessionIsFalse() throws {
+    func testCreateAgent_withSession_continueRecentSessionIsFalse() async throws {
         // AC#2: When --session is provided, continueRecentSession should not be active.
         // The explicit session ID takes precedence.
         let args = makeArgs(sessionId: "explicit-session-456")
 
         // After implementation: continueRecentSession should be false when
         // an explicit sessionId is provided.
-        let (agent, _) = try AgentFactory.createAgent(from: args)
+        let (agent, _) = try await AgentFactory.createAgent(from: args)
 
         XCTAssertNotNil(agent,
             "Agent with explicit --session should be created successfully")
@@ -187,7 +187,7 @@ final class AutoRestoreTests: XCTestCase {
 
     // MARK: - AC#3: --no-restore starts fresh session
 
-    func testCreateAgent_noRestore_generatesNewSessionId() throws {
+    func testCreateAgent_noRestore_generatesNewSessionId() async throws {
         // AC#3: When --no-restore is provided, a new UUID session ID should be
         // generated (not nil, not the recent session).
         let args = makeArgs(noRestore: true)
@@ -203,18 +203,18 @@ final class AutoRestoreTests: XCTestCase {
             "Generated session ID should be a UUID format")
     }
 
-    func testCreateAgent_noRestore_continueRecentSessionIsFalse() throws {
+    func testCreateAgent_noRestore_continueRecentSessionIsFalse() async throws {
         // AC#3: When --no-restore is provided, continueRecentSession should be false.
         let args = makeArgs(noRestore: true)
 
         // After implementation: continueRecentSession should be false
-        let (agent, _) = try AgentFactory.createAgent(from: args)
+        let (agent, _) = try await AgentFactory.createAgent(from: args)
 
         XCTAssertNotNil(agent,
             "Agent with --no-restore should be created with fresh session")
     }
 
-    func testCreateAgent_noRestore_withSession_usesSpecifiedId() throws {
+    func testCreateAgent_noRestore_withSession_usesSpecifiedId() async throws {
         // AC#2 + AC#3: When both --no-restore and --session are provided,
         // the specified session ID should be used (not a new UUID).
         let explicitId = "combined-session-789"
@@ -242,7 +242,7 @@ final class AutoRestoreTests: XCTestCase {
         // (no sessionId, noRestore = false)
         let args = makeArgs()
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             sessionStore: sessionStore,
@@ -270,7 +270,7 @@ final class AutoRestoreTests: XCTestCase {
 
         let args = makeArgs(noRestore: true)
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             sessionStore: sessionStore,
@@ -296,7 +296,7 @@ final class AutoRestoreTests: XCTestCase {
 
         let args = makeArgs(sessionId: "some-explicit-id")
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             sessionStore: sessionStore,
@@ -350,7 +350,7 @@ final class AutoRestoreTests: XCTestCase {
 
         let args = makeArgs()
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             sessionStore: sessionStore,
@@ -380,7 +380,7 @@ final class AutoRestoreTests: XCTestCase {
 
         let args = makeArgs()
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: inputReader,
             sessionStore: sessionStore,
@@ -397,27 +397,27 @@ final class AutoRestoreTests: XCTestCase {
 
     // MARK: - Regression: existing behavior preserved
 
-    func testCreateAgent_autoRestore_modelStillCorrect() throws {
+    func testCreateAgent_autoRestore_modelStillCorrect() async throws {
         // Regression: model should still be correctly passed through with auto-restore.
         let args = makeArgs(model: "custom-model-v3")
 
-        let (agent, _) = try AgentFactory.createAgent(from: args)
+        let (agent, _) = try await AgentFactory.createAgent(from: args)
 
         XCTAssertEqual(agent.model, "custom-model-v3",
             "Model should still be passed through correctly with auto-restore")
     }
 
-    func testCreateAgent_autoRestore_maxTurnsStillCorrect() throws {
+    func testCreateAgent_autoRestore_maxTurnsStillCorrect() async throws {
         // Regression: maxTurns should still be correctly passed through.
         let args = makeArgs(maxTurns: 7)
 
-        let (agent, _) = try AgentFactory.createAgent(from: args)
+        let (agent, _) = try await AgentFactory.createAgent(from: args)
 
         XCTAssertEqual(agent.maxTurns, 7,
             "maxTurns should still be passed through correctly with auto-restore")
     }
 
-    func testCreateAgent_autoRestore_systemPromptStillCorrect() throws {
+    func testCreateAgent_autoRestore_systemPromptStillCorrect() async throws {
         // Regression: systemPrompt should still be correctly passed through.
         let argsWithPrompt = ParsedArgs(
             helpRequested: false, versionRequested: false, prompt: nil,
@@ -430,17 +430,17 @@ final class AutoRestoreTests: XCTestCase {
             shouldExit: false, exitCode: 0, errorMessage: nil, helpMessage: nil
         )
 
-        let (agent, _) = try AgentFactory.createAgent(from: argsWithPrompt)
+        let (agent, _) = try await AgentFactory.createAgent(from: argsWithPrompt)
 
         XCTAssertEqual(agent.systemPrompt, "Be helpful",
             "systemPrompt should still be passed through correctly with auto-restore")
     }
 
-    func testCreateAgent_autoRestore_returnsSessionStore() throws {
+    func testCreateAgent_autoRestore_returnsSessionStore() async throws {
         // Regression: createAgent should still return (Agent, SessionStore) tuple.
         let args = makeArgs()
 
-        let (agent, sessionStore) = try AgentFactory.createAgent(from: args)
+        let (agent, sessionStore) = try await AgentFactory.createAgent(from: args)
 
         XCTAssertNotNil(agent, "Agent should be returned")
         XCTAssertNotNil(sessionStore, "SessionStore should be returned")

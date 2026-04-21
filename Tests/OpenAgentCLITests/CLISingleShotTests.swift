@@ -26,7 +26,7 @@ final class CLISingleShotTests: XCTestCase {
     }
 
     /// Creates a test Agent with a dummy API key.
-    private func makeTestAgent() throws -> Agent {
+    private func makeTestAgent() async throws -> Agent {
         let args = ParsedArgs(
             helpRequested: false,
             versionRequested: false,
@@ -57,7 +57,7 @@ final class CLISingleShotTests: XCTestCase {
             errorMessage: nil,
             helpMessage: nil
         )
-        return try AgentFactory.createAgent(from: args).0
+        return try await AgentFactory.createAgent(from: args).0
     }
 
     // MARK: - AC#1: CLI accepts positional prompt for single-shot mode

@@ -426,7 +426,10 @@ final class PermissionHandlerTests: XCTestCase {
             helpMessage: nil
         )
 
-        XCTAssertThrowsError(try AgentFactory.createAgent(from: args)) { error in
+        do {
+            _ = try await AgentFactory.createAgent(from: args)
+            XCTFail("Should throw for invalid mode (AC#4)")
+        } catch {
             XCTAssertTrue(error is AgentFactoryError,
                 "Should throw AgentFactoryError for invalid mode (AC#4)")
             let message = error.localizedDescription

@@ -135,7 +135,7 @@ final class REPLLoopInterruptTests: XCTestCase {
     }
 
     /// Creates a test Agent with dummy configuration.
-    private func makeTestAgent() throws -> Agent {
+    private func makeTestAgent() async throws -> Agent {
         let args = ParsedArgs(
             helpRequested: false,
             versionRequested: false,
@@ -166,7 +166,7 @@ final class REPLLoopInterruptTests: XCTestCase {
             errorMessage: nil,
             helpMessage: nil
         )
-        return try AgentFactory.createAgent(from: args).0
+        return try await AgentFactory.createAgent(from: args).0
     }
 
     // ================================================================
@@ -196,7 +196,7 @@ final class REPLLoopInterruptTests: XCTestCase {
         )
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: reader
         )
@@ -221,7 +221,7 @@ final class REPLLoopInterruptTests: XCTestCase {
         )
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: reader
         )
@@ -262,7 +262,7 @@ final class REPLLoopInterruptTests: XCTestCase {
         // uses a real LLM (test key), we can't fully control the permission
         // flow. Instead, we verify the general REPL loop resilience.
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: reader
         )
@@ -294,7 +294,7 @@ final class REPLLoopInterruptTests: XCTestCase {
         )
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: reader
         )
@@ -325,7 +325,7 @@ final class REPLLoopInterruptTests: XCTestCase {
         )
 
         let repl = REPLLoop(
-            agent: try makeTestAgent(),
+            agent: try await makeTestAgent(),
             renderer: renderer,
             reader: reader
         )
