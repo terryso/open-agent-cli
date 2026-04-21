@@ -73,6 +73,11 @@ struct REPLLoop {
     ///
     /// Continues reading input and dispatching to the Agent until the user
     /// types /exit, /quit, or the input reader returns nil (EOF).
+    ///
+    /// Signal handling:
+    /// - Single Ctrl+C during streaming: interrupts Agent, re-shows prompt
+    /// - Double Ctrl+C within 1s: exits CLI (breaks loop)
+    /// - SIGTERM: breaks loop for graceful shutdown via closeAgentSafely()
     func start() async {
         while let input = reader.readLine(prompt: "> ") {
             let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -80,16 +85,55 @@ struct REPLLoop {
             // AC#6: Ignore empty/whitespace-only lines
             guard !trimmed.isEmpty else { continue }
 
+            // Check for pending signals between reads.
+            // This catches SIGTERM that arrived while waiting for input,
+            // and any leftover interrupt state from previous iterations.
+            let preCheck = SignalHandler.check()
+            if preCheck == .terminate || preCheck == .forceExit {
+                break
+            }
+            // If an interrupt arrived while waiting for input (idle state),
+            // just clear it -- the user pressed Ctrl+C at the prompt.
+            // Output ^C and re-show the prompt (continue the loop).
+            if preCheck == .interrupt {
+                renderer.output.write("^C\n")
+                continue
+            }
+
             // Slash commands
             if trimmed.hasPrefix("/") {
                 if await handleSlashCommand(trimmed) { break }
                 continue
             }
 
-            // AC#2, AC#3: Send to Agent and render stream
+            // AC#2, AC#3: Send to Agent and render stream with interrupt checking.
+            // Instead of using renderer.renderStream(), we manually iterate
+            // the stream so we can check SignalHandler between messages.
             do {
                 let stream = agentHolder.agent.stream(trimmed)
-                await renderer.renderStream(stream)
+                for await message in stream {
+                    let event = SignalHandler.check()
+                    if event == .interrupt || event == .forceExit || event == .terminate {
+                        agentHolder.agent.interrupt()
+                        renderer.output.write("^C\n")
+                        if event == .forceExit || event == .terminate {
+                            return  // Exit REPL immediately
+                        }
+                        break  // Break inner stream loop, continue REPL while loop
+                    }
+                    renderer.render(message)
+                }
+                // Also check for pending signals after stream completes.
+                // This handles the case where the signal arrives during the
+                // last stream iteration but is only processed after for-await exits.
+                let postCheck = SignalHandler.check()
+                if postCheck == .interrupt || postCheck == .forceExit || postCheck == .terminate {
+                    agentHolder.agent.interrupt()
+                    renderer.output.write("^C\n")
+                    if postCheck == .forceExit || postCheck == .terminate {
+                        return
+                    }
+                }
             } catch {
                 renderer.output.write("Error: \(error.localizedDescription)\n")
                 // Continue REPL loop -- never crash at REPL boundary

@@ -4,6 +4,9 @@ import OpenAgentSDK
 
 // MARK: - ATDD Red Phase: Story 5.1 Permission Mode Configuration
 //
+// Story 5.1 tests: Permission mode configuration (bypassPermissions, default, plan, etc.)
+// See below for Story 5.2 tests.
+//
 // These tests define the EXPECTED behavior of PermissionHandler and the
 // canUseTool callback integration. They will FAIL until PermissionHandler.swift
 // is implemented and AgentFactory.swift is updated (TDD red phase).
@@ -533,5 +536,490 @@ final class PermissionHandlerTests: XCTestCase {
 
         XCTAssertEqual(result?.behavior, .allow,
             "default mode should auto-allow Glob (read-only)")
+    }
+
+    // ================================================================
+    // MARK: - Story 5.2: Interactive Permission Prompts (ATDD Red Phase)
+    // ================================================================
+    //
+    // These tests define the EXPECTED behavior for Story 5.2 enhancements:
+    //   - Risk level classification (HIGH/MEDIUM/LOW)
+    //   - Enhanced prompt format (risk tag, tool name, parameter summary)
+    //   - "always" option for session-level tool approval
+    //   - Empty input defaults to deny
+    //   - Non-interactive mode degradation (stdin EOF handling)
+    //
+    // All tests will FAIL until PermissionHandler.swift is enhanced.
+    // This is INTENTIONAL (TDD red phase).
+
+    // ================================================================
+    // MARK: AC#1 - Prompt displays tool name, input summary, and risk level
+    // ================================================================
+
+    /// AC#1: Bash with destructive command (rm -rf) should be classified as HIGH risk.
+    func testRiskLevel_highRisk_destructiveBash() async throws {
+        // Arrange: Bash tool with rm -rf command
+        let tool = MockTool(name: "Bash", isReadOnly: false)
+        let input: [String: Any] = ["command": "rm -rf /tmp/test"]
+
+        // Act: Classify risk level
+        let riskLevel = PermissionHandler.classifyRiskLevel(tool: tool, input: input)
+
+        // Assert: Should be HIGH for destructive commands
+        XCTAssertEqual(riskLevel, .high,
+            "Bash with 'rm -rf' should be classified as HIGH risk (AC#1)")
+    }
+
+    /// AC#1: Bash with format/mkfs command should be classified as HIGH risk.
+    func testRiskLevel_highRisk_formatCommand() async throws {
+        let tool = MockTool(name: "Bash", isReadOnly: false)
+        let input: [String: Any] = ["command": "mkfs.ext4 /dev/sda1"]
+
+        let riskLevel = PermissionHandler.classifyRiskLevel(tool: tool, input: input)
+
+        XCTAssertEqual(riskLevel, .high,
+            "Bash with 'mkfs' should be classified as HIGH risk (AC#1)")
+    }
+
+    /// AC#1: Write tool should be classified as MEDIUM risk.
+    func testRiskLevel_mediumRisk_writeTool() async throws {
+        let tool = MockTool(name: "Write", isReadOnly: false)
+        let input: [String: Any] = ["file_path": "/tmp/out.txt", "content": "hello"]
+
+        let riskLevel = PermissionHandler.classifyRiskLevel(tool: tool, input: input)
+
+        XCTAssertEqual(riskLevel, .medium,
+            "Write tool should be classified as MEDIUM risk (AC#1)")
+    }
+
+    /// AC#1: Bash without destructive commands should be classified as MEDIUM risk.
+    func testRiskLevel_mediumRisk_bashNonDestructive() async throws {
+        let tool = MockTool(name: "Bash", isReadOnly: false)
+        let input: [String: Any] = ["command": "ls -la /tmp"]
+
+        let riskLevel = PermissionHandler.classifyRiskLevel(tool: tool, input: input)
+
+        XCTAssertEqual(riskLevel, .medium,
+            "Bash without destructive commands should be classified as MEDIUM risk (AC#1)")
+    }
+
+    /// AC#1: Edit tool should be classified as LOW risk.
+    func testRiskLevel_lowRisk_editTool() async throws {
+        let tool = MockTool(name: "Edit", isReadOnly: false)
+        let input: [String: Any] = ["file_path": "src/main.swift", "old_string": "foo", "new_string": "bar"]
+
+        let riskLevel = PermissionHandler.classifyRiskLevel(tool: tool, input: input)
+
+        XCTAssertEqual(riskLevel, .low,
+            "Edit tool should be classified as LOW risk (AC#1)")
+    }
+
+    /// AC#1: Permission prompt should display risk level tag.
+    func testPromptDisplays_riskLevelTag() async throws {
+        // Arrange: Use default mode with a high-risk tool
+        let (reader, output) = makeMocks(lines: ["y"])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .default,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: true
+        )
+
+        let bashTool = MockTool(name: "Bash", isReadOnly: false)
+        _ = await canUseTool(bashTool, ["command": "rm -rf /tmp/test"], makeContext())
+
+        // Assert: Output should contain "HIGH RISK" tag
+        let promptOutput = output.output
+        XCTAssertTrue(promptOutput.contains("HIGH RISK") || promptOutput.contains("high risk") || promptOutput.contains("HIGH"),
+            "Permission prompt should display HIGH RISK tag for destructive commands (AC#1)")
+    }
+
+    /// AC#1: Permission prompt should display tool name.
+    func testPromptDisplays_toolName() async throws {
+        let (reader, output) = makeMocks(lines: ["y"])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .default,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: true
+        )
+
+        let writeTool = MockTool(name: "Write", isReadOnly: false)
+        _ = await canUseTool(writeTool, ["file_path": "/tmp/out.txt"], makeContext())
+
+        let promptOutput = output.output
+        XCTAssertTrue(promptOutput.contains("Write"),
+            "Permission prompt should display tool name 'Write' (AC#1)")
+    }
+
+    /// AC#1: Permission prompt should display input parameter summary.
+    func testPromptDisplays_inputSummary() async throws {
+        let (reader, output) = makeMocks(lines: ["y"])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .default,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: true
+        )
+
+        let bashTool = MockTool(name: "Bash", isReadOnly: false)
+        _ = await canUseTool(bashTool, ["command": "rm -rf /tmp/test"], makeContext())
+
+        let promptOutput = output.output
+        XCTAssertTrue(promptOutput.contains("rm -rf /tmp/test") || promptOutput.contains("rm"),
+            "Permission prompt should display parameter summary containing command (AC#1)")
+    }
+
+    /// AC#1: HIGH risk prompts should use red color styling.
+    func testPromptHighRisk_usesRedColor() async throws {
+        let (reader, output) = makeMocks(lines: ["y"])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .default,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: true
+        )
+
+        let bashTool = MockTool(name: "Bash", isReadOnly: false)
+        _ = await canUseTool(bashTool, ["command": "rm -rf /tmp/test"], makeContext())
+
+        // ANSI red escape code: \u{001B}[31m
+        let promptOutput = output.output
+        XCTAssertTrue(promptOutput.contains("\u{001B}[31m"),
+            "HIGH risk prompt should use red ANSI color (AC#1)")
+    }
+
+    /// AC#1: MEDIUM risk prompts should use yellow color styling.
+    func testPromptMediumRisk_usesYellowColor() async throws {
+        let (reader, output) = makeMocks(lines: ["y"])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .default,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: true
+        )
+
+        let writeTool = MockTool(name: "Write", isReadOnly: false)
+        _ = await canUseTool(writeTool, ["file_path": "/tmp/out.txt"], makeContext())
+
+        // ANSI yellow escape code: \u{001B}[33m
+        let promptOutput = output.output
+        XCTAssertTrue(promptOutput.contains("\u{001B}[33m"),
+            "MEDIUM risk prompt should use yellow ANSI color (AC#1)")
+    }
+
+    /// AC#1: LOW risk prompts should use dim styling.
+    func testPromptLowRisk_usesDimStyle() async throws {
+        let (reader, output) = makeMocks(lines: ["y"])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .acceptEdits,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: true
+        )
+
+        // acceptEdits auto-allows Edit, so use plan mode to force a prompt
+        let planCanUseTool = PermissionHandler.createCanUseTool(
+            mode: .plan,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: true
+        )
+
+        let editTool = MockTool(name: "Edit", isReadOnly: false)
+        _ = await planCanUseTool(editTool, ["file_path": "src/main.swift"], makeContext())
+
+        // ANSI dim escape code: \u{001B}[2m
+        let promptOutput = output.output
+        XCTAssertTrue(promptOutput.contains("\u{001B}[2m"),
+            "LOW risk prompt should use dim ANSI style (AC#1)")
+    }
+
+    // ================================================================
+    // MARK: AC#2 - User input y/yes allows tool execution
+    // ================================================================
+
+    /// AC#2: Prompt should offer y/n/a options in the new format.
+    func testPromptOffers_alwaysOption() async throws {
+        let (reader, output) = makeMocks(lines: ["y"])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .default,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: true
+        )
+
+        let writeTool = MockTool(name: "Write", isReadOnly: false)
+        _ = await canUseTool(writeTool, ["file_path": "/tmp/out.txt"], makeContext())
+
+        let promptOutput = output.output
+        XCTAssertTrue(promptOutput.contains("a") || promptOutput.contains("always"),
+            "Permission prompt should offer 'a'/'always' option (AC#2)")
+    }
+
+    /// AC#2: "a" input should allow the tool (same as yes for first call).
+    func testAlwaysOption_allowsFirstCall() async throws {
+        let (reader, output) = makeMocks(lines: ["a"])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .default,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: true
+        )
+
+        let writeTool = MockTool(name: "Write", isReadOnly: false)
+        let result = await canUseTool(writeTool, ["file_path": "/tmp/out.txt"], makeContext())
+
+        XCTAssertEqual(result?.behavior, .allow,
+            "'a' input should allow tool execution on first call (AC#2)")
+    }
+
+    /// AC#2: "always" input should allow the tool (full word variant).
+    func testAlwaysOption_fullWord_allowsFirstCall() async throws {
+        let (reader, output) = makeMocks(lines: ["always"])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .default,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: true
+        )
+
+        let writeTool = MockTool(name: "Write", isReadOnly: false)
+        let result = await canUseTool(writeTool, ["file_path": "/tmp/out.txt"], makeContext())
+
+        XCTAssertEqual(result?.behavior, .allow,
+            "'always' input should allow tool execution (AC#2)")
+    }
+
+    /// AC#2: "a" should enable session-level memory - second call auto-allows.
+    func testAlwaysOption_sessionLevelMemory() async throws {
+        // Arrange: Input "a" for first call, then no input needed for second
+        let (reader, output) = makeMocks(lines: ["a"])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .default,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: true
+        )
+
+        // First call: user says "a" (always allow Write tool)
+        let writeTool = MockTool(name: "Write", isReadOnly: false)
+        let result1 = await canUseTool(writeTool, ["file_path": "/tmp/out1.txt"], makeContext())
+        XCTAssertEqual(result1?.behavior, .allow,
+            "First call with 'a' should allow (AC#2)")
+
+        // Second call: same tool should auto-allow without prompting
+        let result2 = await canUseTool(writeTool, ["file_path": "/tmp/out2.txt"], makeContext())
+        XCTAssertEqual(result2?.behavior, .allow,
+            "Second call with same tool should auto-allow after 'always' (AC#2)")
+        XCTAssertEqual(reader.callCount, 1,
+            "Second call should not prompt again (session-level memory) (AC#2)")
+    }
+
+    /// AC#2: "a" for one tool should NOT auto-allow a different tool.
+    func testAlwaysOption_doesNotAffectOtherTools() async throws {
+        let (reader, output) = makeMocks(lines: ["a", "y"])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .default,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: true
+        )
+
+        // First call: always allow Write tool
+        let writeTool = MockTool(name: "Write", isReadOnly: false)
+        _ = await canUseTool(writeTool, ["file_path": "/tmp/out.txt"], makeContext())
+
+        // Second call: Bash tool should still prompt
+        let bashTool = MockTool(name: "Bash", isReadOnly: false)
+        let result = await canUseTool(bashTool, ["command": "echo hello"], makeContext())
+
+        XCTAssertEqual(reader.callCount, 2,
+            "Bash tool should still prompt even after 'always' for Write (AC#2)")
+        XCTAssertEqual(result?.behavior, .allow,
+            "Bash tool should be allowed when user says yes (AC#2)")
+    }
+
+    // ================================================================
+    // MARK: AC#3 - User input n/no denies tool execution
+    // ================================================================
+
+    /// AC#3: Empty input (just pressing Enter) should default to deny.
+    func testEmptyInput_defaultsToDeny() async throws {
+        let (reader, output) = makeMocks(lines: [""])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .default,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: true
+        )
+
+        let writeTool = MockTool(name: "Write", isReadOnly: false)
+        let result = await canUseTool(writeTool, ["file_path": "/tmp/out.txt"], makeContext())
+
+        XCTAssertEqual(result?.behavior, .deny,
+            "Empty input should default to deny (AC#3)")
+    }
+
+    /// AC#3: Non-interactive mode in default mode should deny write tools with warning.
+    func testNonInteractive_defaultMode_deniesWriteTool() async throws {
+        let (reader, output) = makeMocks(lines: [])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .default,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: false
+        )
+
+        let writeTool = MockTool(name: "Write", isReadOnly: false)
+        let result = await canUseTool(writeTool, ["file_path": "/tmp/out.txt"], makeContext())
+
+        XCTAssertEqual(result?.behavior, .deny,
+            "Non-interactive default mode should deny write tools (AC#3)")
+        XCTAssertTrue(output.output.contains("Non-interactive") || output.output.contains("bypassPermissions") || output.output.contains("non-interactive"),
+            "Non-interactive denial should contain helpful message about --mode bypassPermissions (AC#3)")
+        XCTAssertEqual(reader.callCount, 0,
+            "Non-interactive mode should not prompt for input (AC#3)")
+    }
+
+    /// AC#3: Non-interactive mode in default mode should still auto-allow read-only tools.
+    func testNonInteractive_defaultMode_allowsReadOnlyTool() async throws {
+        let (reader, output) = makeMocks(lines: [])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .default,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: false
+        )
+
+        let readTool = MockTool(name: "Read", isReadOnly: true)
+        let result = await canUseTool(readTool, ["file_path": "/tmp/test.txt"], makeContext())
+
+        XCTAssertEqual(result?.behavior, .allow,
+            "Non-interactive default mode should still auto-allow read-only tools (AC#3)")
+    }
+
+    /// AC#3: Non-interactive mode in plan mode should deny all tools with warning.
+    func testNonInteractive_planMode_deniesAllTools() async throws {
+        let (reader, output) = makeMocks(lines: [])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .plan,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: false
+        )
+
+        let readTool = MockTool(name: "Read", isReadOnly: true)
+        let result = await canUseTool(readTool, ["file_path": "/tmp/test.txt"], makeContext())
+
+        XCTAssertEqual(result?.behavior, .deny,
+            "Non-interactive plan mode should deny even read-only tools (AC#3)")
+        XCTAssertTrue(output.output.contains("Non-interactive") || output.output.contains("bypassPermissions"),
+            "Non-interactive plan denial should mention bypassPermissions (AC#3)")
+    }
+
+    /// AC#1: Non-interactive mode in bypassPermissions should still auto-allow all tools.
+    func testNonInteractive_bypassPermissions_autoAllows() async throws {
+        let (reader, output) = makeMocks(lines: [])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .bypassPermissions,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: false
+        )
+
+        let writeTool = MockTool(name: "Bash", isReadOnly: false)
+        let result = await canUseTool(writeTool, ["command": "rm -rf /tmp/test"], makeContext())
+
+        XCTAssertEqual(result?.behavior, .allow,
+            "Non-interactive bypassPermissions should still auto-allow all tools (AC#1)")
+    }
+
+    /// Non-interactive mode in acceptEdits should deny non-edit write tools.
+    func testNonInteractive_acceptEdits_deniesNonEditWrite() async throws {
+        let (reader, output) = makeMocks(lines: [])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .acceptEdits,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: false
+        )
+
+        let writeTool = MockTool(name: "Write", isReadOnly: false)
+        let result = await canUseTool(writeTool, ["file_path": "/tmp/out.txt"], makeContext())
+
+        XCTAssertEqual(result?.behavior, .deny,
+            "Non-interactive acceptEdits should deny non-edit write tools (AC#3)")
+    }
+
+    /// Non-interactive mode in acceptEdits should still auto-allow Edit tools.
+    func testNonInteractive_acceptEdits_allowsEditTool() async throws {
+        let (reader, output) = makeMocks(lines: [])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .acceptEdits,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: false
+        )
+
+        let editTool = MockTool(name: "Edit", isReadOnly: false)
+        let result = await canUseTool(editTool, ["file_path": "src/main.swift"], makeContext())
+
+        XCTAssertEqual(result?.behavior, .allow,
+            "Non-interactive acceptEdits should still auto-allow Edit tools (AC#3)")
+    }
+
+    /// Non-interactive mode in dontAsk should still auto-allow all tools.
+    func testNonInteractive_dontAsk_autoAllows() async throws {
+        let (reader, output) = makeMocks(lines: [])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .dontAsk,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: false
+        )
+
+        let writeTool = MockTool(name: "Bash", isReadOnly: false)
+        let result = await canUseTool(writeTool, ["command": "rm -rf /tmp/test"], makeContext())
+
+        XCTAssertEqual(result?.behavior, .allow,
+            "Non-interactive dontAsk should still auto-allow all tools (AC#1)")
+    }
+
+    /// Non-interactive mode in auto mode should still auto-allow all tools.
+    func testNonInteractive_auto_autoAllows() async throws {
+        let (reader, output) = makeMocks(lines: [])
+
+        let canUseTool = PermissionHandler.createCanUseTool(
+            mode: .auto,
+            reader: reader,
+            renderer: OutputRenderer(output: output),
+            isInteractive: false
+        )
+
+        let writeTool = MockTool(name: "Write", isReadOnly: false)
+        let result = await canUseTool(writeTool, ["file_path": "/tmp/out.txt"], makeContext())
+
+        XCTAssertEqual(result?.behavior, .allow,
+            "Non-interactive auto should still auto-allow all tools (AC#1)")
     }
 }

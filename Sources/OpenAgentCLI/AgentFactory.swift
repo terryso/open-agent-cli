@@ -96,10 +96,12 @@ enum AgentFactory {
         // 8. Create canUseTool callback via PermissionHandler
         let reader = FileHandleInputReader()
         let permRenderer = OutputRenderer()
+        let isInteractive = args.prompt == nil && args.skillName == nil
         let canUseTool = PermissionHandler.createCanUseTool(
             mode: permMode,
             reader: reader,
-            renderer: permRenderer
+            renderer: permRenderer,
+            isInteractive: isInteractive
         )
 
         // 9. Assemble AgentOptions

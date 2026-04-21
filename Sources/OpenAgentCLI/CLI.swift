@@ -36,6 +36,10 @@ enum CLI {
         let config = ConfigLoader.load()
         ConfigLoader.apply(config, to: &args)
 
+        // Register signal handlers for graceful interrupt handling (Story 5.3).
+        // Must be called before any interactive mode starts.
+        SignalHandler.register()
+
         // Build SkillRegistry if skill-related args are present (computed once, reused throughout)
         let skillRegistry = AgentFactory.createSkillRegistry(from: args)
 
