@@ -47,6 +47,107 @@ protocol OutputRendering: Sendable {
     func renderStream(_ stream: AsyncStream<SDKMessage>) async
 }
 
+// MARK: - Streaming Markdown Buffer
+
+/// Reference-type buffer that accumulates streaming text for code block rendering.
+///
+/// Strategy: Most text chunks are written immediately with inline Markdown
+/// formatting (bold, code) applied per-chunk. Code blocks (``` ... ```) are
+/// the exception -- they are buffered until the closing ``` so the box-drawing
+/// borders can be calculated from the full content.
+final class MarkdownBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var buffer = ""
+    private var insideCodeBlock = false
+    private let output: AnyTextOutputStream
+
+    init(output: AnyTextOutputStream) {
+        self.output = output
+    }
+
+    /// Append a streaming chunk.
+    ///
+    /// - If currently inside a code block, buffer the chunk.
+    /// - If the chunk contains an opening ```, enter code block mode.
+    /// - Otherwise, apply inline Markdown formatting and write immediately.
+    func append(_ chunk: String) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if insideCodeBlock {
+            buffer += chunk
+            tryFlushCodeBlock()
+        } else if chunk.contains("```") {
+            // Chunk contains a code fence start -- buffer it
+            buffer += chunk
+            insideCodeBlock = true
+            tryFlushCodeBlock()
+        } else {
+            // Normal streaming text: apply inline formatting and write immediately
+            output.write(MarkdownRenderer.renderInline(chunk))
+        }
+    }
+
+    /// Flush any remaining buffered content.
+    ///
+    /// Called when the final `.result` message arrives. If we're inside an
+    /// unclosed code block, render what we have gracefully.
+    func flush() {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard !buffer.isEmpty else { return }
+        if insideCodeBlock {
+            // Unclosed code block: render as code block with existing content
+            let rendered = MarkdownRenderer.renderCodeBlock(buffer)
+            output.write(rendered)
+        } else {
+            output.write(MarkdownRenderer.render(buffer))
+        }
+        buffer = ""
+        insideCodeBlock = false
+    }
+
+    // MARK: - Private
+
+    /// Try to extract and render a complete code block from the buffer.
+    private func tryFlushCodeBlock() {
+        // Look for opening ```
+        guard let openRange = buffer.range(of: "```") else {
+            return
+        }
+
+        // Look for closing ``` after the opening
+        let searchStart = openRange.upperBound
+        if let closeRange = buffer.range(of: "```", range: searchStart..<buffer.endIndex) {
+            // Complete code block found -- extract, render, and remove from buffer
+            let blockEnd = closeRange.upperBound
+            let block = String(buffer[buffer.startIndex..<blockEnd])
+
+            // Remove the block from buffer
+            var remaining = String(buffer[blockEnd...])
+            if remaining.hasPrefix("\n") {
+                remaining = String(remaining.dropFirst())
+            }
+            buffer = remaining
+            insideCodeBlock = false
+
+            output.write(MarkdownRenderer.render(block))
+
+            // Check if there's another code block starting in remaining buffer
+            if buffer.contains("```") {
+                insideCodeBlock = true
+                tryFlushCodeBlock()
+            } else if !buffer.isEmpty {
+                // Write any remaining non-code text
+                output.write(MarkdownRenderer.renderInline(buffer))
+                buffer = ""
+            }
+        }
+        // else: code block not yet closed, keep buffering
+    }
+}
+
 // MARK: - OutputRenderer
 
 /// Renders SDK messages to terminal output with ANSI styling.
@@ -61,16 +162,23 @@ struct OutputRenderer: OutputRendering {
     /// Suppresses tool calls, system messages, success results, and sub-agent events.
     let quiet: Bool
 
+    /// Markdown buffer for accumulating streaming text and rendering at block boundaries.
+    let markdownBuffer: MarkdownBuffer
+
     /// Create with default stdout output.
     init(quiet: Bool = false) {
-        self.output = AnyTextOutputStream(FileHandleTextOutputStream())
+        let outputStream = AnyTextOutputStream(FileHandleTextOutputStream())
+        self.output = outputStream
         self.quiet = quiet
+        self.markdownBuffer = MarkdownBuffer(output: outputStream)
     }
 
     /// Create with custom output stream (for testing).
     init<O: TextOutputStream>(output: O, quiet: Bool = false) {
-        self.output = AnyTextOutputStream(output)
+        let outputStream = AnyTextOutputStream(output)
+        self.output = outputStream
         self.quiet = quiet
+        self.markdownBuffer = MarkdownBuffer(output: outputStream)
     }
 
     /// Main dispatch method -- routes each SDKMessage case to its renderer.

@@ -28,6 +28,7 @@ struct ParsedArgs {
     var output: String = "text"
     var logLevel: String? = nil
     var debug: Bool = false
+    var stdin: Bool = false
     var toolAllow: [String]? = nil
     var toolDeny: [String]? = nil
     var shouldExit: Bool = false
@@ -79,7 +80,7 @@ enum ArgumentParser {
 
     /// Flags that do not take a value (presence = true).
     private static let booleanFlags: Set<String> = [
-        "--quiet", "--no-restore", "--debug", "-d"
+        "--quiet", "--no-restore", "--debug", "-d", "--stdin"
     ]
 
     // MARK: - Parse
@@ -217,6 +218,8 @@ enum ArgumentParser {
             } else if arg == "--debug" || arg == "-d" {
                 result.debug = true
                 result.logLevel = "debug"
+            } else if arg == "--stdin" {
+                result.stdin = true
             } else if arg == "--" {
                 // POSIX end-of-flags: remaining args are positional
                 i += 1
@@ -301,6 +304,7 @@ enum ArgumentParser {
           --system-prompt <text>   Override system prompt
           --thinking <budget>      Thinking token budget
           --quiet                  Suppress non-essential output
+          --stdin                  Read prompt from standard input (pipe mode)
 
         Tools Options:
           --tools <tiers>          Tool tiers: core, advanced, specialist, all (default: core)

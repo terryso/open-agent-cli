@@ -5,20 +5,22 @@ import OpenAgentSDK
 
 extension OutputRenderer {
 
-    // MARK: - AC#1: partialMessage -- chunk-by-chunk text output, no buffering
+    // MARK: - AC#1: partialMessage -- chunk-by-chunk with Markdown block buffering
 
-    /// Render a partial text chunk to the output stream without a trailing newline.
+    /// Render a partial text chunk through the Markdown buffer.
     ///
-    /// This is the primary streaming target -- each text fragment is written
-    /// immediately as it arrives from the SDK. When the text starts with the
-    /// `[thinking]` marker (extended thinking content from the model), it is
-    /// rendered with dim ANSI styling to visually distinguish it from regular output.
+    /// Thinking content (prefixed with `[thinking]`) bypasses the Markdown buffer
+    /// and is written immediately with dim ANSI styling, as Markdown rendering
+    /// should not interfere with thinking content (Story 6.4).
+    ///
+    /// Regular text is accumulated in the Markdown buffer and rendered at block
+    /// boundaries (paragraph breaks, code block closures) for correct formatting.
     func renderPartialMessage(_ data: SDKMessage.PartialData) {
         guard !data.text.isEmpty else { return }
         if data.text.hasPrefix("[thinking]") {
             output.write(ANSI.dim(data.text))
         } else {
-            output.write(data.text)
+            markdownBuffer.append(data.text)
         }
     }
 
@@ -28,7 +30,11 @@ extension OutputRenderer {
     ///
     /// For normal responses (no error), produces no output -- the text was already
     /// streamed via `partialMessage`. Only errors are rendered (in red with guidance).
+    /// Flushes the Markdown buffer first to ensure all pending text is output.
     func renderAssistant(_ data: SDKMessage.AssistantData) {
+        // Flush any remaining buffered Markdown content before showing error
+        markdownBuffer.flush()
+
         guard let error = data.error else {
             // Normal assistant: text already streamed via partialMessage. Nothing to do.
             return
@@ -39,14 +45,19 @@ extension OutputRenderer {
         output.write("\(errorLine) -- \(guidance)\n")
     }
 
-    // MARK: - AC#3, AC#5: result -- summary line with error/cancel handling
+    // MARK: - AC#3, AC#5: result -- flush Markdown, then summary line
 
     /// Render the final query result with a summary line.
     ///
+    /// Flushes any remaining Markdown buffer content before rendering the result
+    /// summary to ensure all text is rendered through the Markdown pipeline.
     /// Format: `--- Turns: N | Cost: $X.XXXX | Duration: Xs`
     /// Error subtypes are highlighted in red; cancelled is shown in grey/dim.
     /// Individual error messages (from `data.errors`) are listed in red.
     func renderResult(_ data: SDKMessage.ResultData) {
+        // Flush any remaining buffered Markdown content
+        markdownBuffer.flush()
+
         switch data.subtype {
         case .success:
             let summary = formatSummary(data)

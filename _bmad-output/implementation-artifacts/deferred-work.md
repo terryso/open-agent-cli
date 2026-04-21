@@ -1,5 +1,11 @@
 # Deferred Work
 
+## Deferred from: code review of 7-1-pipe-stdin-input-mode.md (2026-04-21)
+
+- **readStdin() hangs on terminal stdin**: `readDataToEndOfFile()` blocks indefinitely when stdin is a terminal. Spec explicitly forbids auto-detection of pipes ("不要自动检测管道"). Consider adding a timeout or interactive prompt in a future story.
+- **--stdin + --skill interaction undefined**: When both `--stdin` and `--skill` are provided, stdin content is read but ignored because skill dispatch uses `skill.promptTemplate`. No AC covers this combination. Consider defining behavior or rejecting the combination with an error.
+- **AC#3 only partially satisfied**: Empty stdin from a pipe correctly errors, but running `openagent --stdin` in a terminal (no pipe) hangs instead of erroring. This is a known design trade-off per the spec's "不要自动检测管道" constraint.
+
 ## Deferred from: code review of 3-1-auto-save-sessions-on-exit.md (2026-04-20)
 
 - **Force-unwrap on .data(using: .utf8)! in closeAgentSafely** — Pre-existing pattern (now 7 occurrences total in CLI.swift, 1 new in this change). The new occurrence is in `closeAgentSafely` at CLI.swift:138. Not introduced by this change, already tracked.

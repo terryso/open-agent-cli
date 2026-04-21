@@ -36,6 +36,29 @@ enum CLI {
         let config = ConfigLoader.load()
         ConfigLoader.apply(config, to: &args)
 
+        // Handle --stdin: read prompt from standard input (Story 7.1).
+        // Only reads stdin when --stdin flag is set and no positional prompt was provided
+        // (positional args take priority per AC#2).
+        if args.stdin {
+            if args.prompt == nil {
+                do {
+                    guard let stdinContent = try readStdin() else {
+                        FileHandle.standardError.write(
+                            ("Error: --stdin specified but no input received on standard input.\n")
+                                .data(using: .utf8)!)
+                        Foundation.exit(1)
+                    }
+                    args.prompt = stdinContent
+                } catch {
+                    FileHandle.standardError.write(
+                        (error.localizedDescription)
+                            .data(using: .utf8)!)
+                    Foundation.exit(1)
+                }
+            }
+            // If positional prompt exists, it takes priority -- stdin is ignored (AC#2)
+        }
+
         // Register signal handlers for graceful interrupt handling (Story 5.3).
         // Must be called before any interactive mode starts.
         SignalHandler.register()
@@ -135,6 +158,33 @@ enum CLI {
             let repl = REPLLoop(agent: agent, renderer: renderer, reader: reader, toolNames: toolNames, skillRegistry: skillRegistry, sessionStore: sessionStore, parsedArgs: args)
             await repl.start()
             await closeAgentSafely(agent)
+        }
+    }
+
+    /// Read all available data from stdin and return as a trimmed string.
+    ///
+    /// Returns `nil` if stdin is empty (no data available or only whitespace).
+    /// Throws a descriptive string if stdin data is not valid UTF-8.
+    /// This method should only be called when `--stdin` flag is set to avoid
+    /// blocking on terminal input.
+    static func readStdin() throws -> String? {
+        let data = FileHandle.standardInput.readDataToEndOfFile()
+        guard let rawText = String(data: data, encoding: .utf8) else {
+            throw StdinError.invalidEncoding
+        }
+        let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
+    }
+
+    /// Errors that can occur during stdin reading.
+    enum StdinError: Error, LocalizedError {
+        case invalidEncoding
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidEncoding:
+                return "Error: --stdin received data that is not valid UTF-8.\n"
+            }
         }
     }
 

@@ -30,6 +30,16 @@ enum ANSI {
         "\u{001B}[33m\(text)\u{001B}[0m"
     }
 
+    /// Green foreground color.
+    static func green(_ text: String) -> String {
+        "\u{001B}[32m\(text)\u{001B}[0m"
+    }
+
+    /// Italic text styling (limited terminal support).
+    static func italic(_ text: String) -> String {
+        "\u{001B}[3m\(text)\u{001B}[0m"
+    }
+
     /// Reset all styling.
     static func reset() -> String {
         "\u{001B}[0m"
