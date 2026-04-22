@@ -471,4 +471,76 @@ final class ArgumentParserTests: XCTestCase {
         XCTAssertEqual(result.exitCode, 1)
         XCTAssertNotNil(result.errorMessage)
     }
+
+    // MARK: - ATDD Red Phase: Story 7.3 — explicitlySet Tracking
+    //
+    // These tests define the EXPECTED behavior of ParsedArgs.explicitlySet.
+    // They will FAIL until the explicitlySet field is added to ParsedArgs
+    // and ArgumentParser.parse() populates it (TDD red phase).
+    //
+    // Acceptance Criteria Coverage:
+    //   AC#2: CLI args override config file (explicitlySet replaces sentinel-value comparison)
+
+    func testExplicitlySet_tracksFlaggedValues() throws {
+        // When user explicitly passes --mode, --model, --tools, those should be in explicitlySet
+        let result = ArgumentParser.parse([
+            "openagent",
+            "--mode", "auto",
+            "--model", "claude-opus-4",
+            "--tools", "all"
+        ])
+
+        XCTAssertTrue(result.explicitlySet.contains("mode"),
+            "--mode should be tracked in explicitlySet")
+        XCTAssertTrue(result.explicitlySet.contains("model"),
+            "--model should be tracked in explicitlySet")
+        XCTAssertTrue(result.explicitlySet.contains("tools"),
+            "--tools should be tracked in explicitlySet")
+    }
+
+    func testExplicitlySet_doesNotTrackDefaults() throws {
+        // When no flags are passed, explicitlySet should be empty
+        // (default values are NOT "explicitly set")
+        let result = ArgumentParser.parse(["openagent"])
+
+        XCTAssertTrue(result.explicitlySet.isEmpty,
+            "No explicitly set values when no flags are passed")
+    }
+
+    func testExplicitlySet_tracksMultipleFlags() throws {
+        // Verify that multiple different flag types are all tracked
+        let result = ArgumentParser.parse([
+            "openagent",
+            "--mcp", "/path/to/mcp.json",
+            "--hooks", "/path/to/hooks.json",
+            "--skill-dir", "/path/to/skills",
+            "--tool-allow", "bash,read",
+            "--max-turns", "20",
+            "--output", "json"
+        ])
+
+        XCTAssertTrue(result.explicitlySet.contains("mcpConfigPath"),
+            "--mcp should be tracked in explicitlySet")
+        XCTAssertTrue(result.explicitlySet.contains("hooksConfigPath"),
+            "--hooks should be tracked in explicitlySet")
+        XCTAssertTrue(result.explicitlySet.contains("skillDir"),
+            "--skill-dir should be tracked in explicitlySet")
+        XCTAssertTrue(result.explicitlySet.contains("toolAllow"),
+            "--tool-allow should be tracked in explicitlySet")
+        XCTAssertTrue(result.explicitlySet.contains("maxTurns"),
+            "--max-turns should be tracked in explicitlySet")
+        XCTAssertTrue(result.explicitlySet.contains("output"),
+            "--output should be tracked in explicitlySet")
+    }
+
+    func testExplicitlySet_explicitDefault_preventsOverride() throws {
+        // The critical scenario: user passes --mode default (same value as default).
+        // This should still be tracked in explicitlySet.
+        let result = ArgumentParser.parse(["openagent", "--mode", "default"])
+
+        XCTAssertTrue(result.explicitlySet.contains("mode"),
+            "--mode default should be in explicitlySet even though value matches default")
+        XCTAssertEqual(result.mode, "default",
+            "Mode should be 'default' as passed by user")
+    }
 }

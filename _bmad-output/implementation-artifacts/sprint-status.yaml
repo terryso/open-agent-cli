@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-19
-last_updated: 2026-04-22T08:50:00
+last_updated: 2026-04-22T12:01:00
 project: open-agent-cli
 project_key: NOKEY
 tracking_system: file-system
@@ -92,7 +92,7 @@ development_status:
   epic-7: in-progress
   7-1-pipe-stdin-input-mode: done
   7-2-json-output-mode: done
-  7-3-persistent-configuration-file: backlog
+  7-3-persistent-configuration-file: done
   7-4-multi-provider-support: backlog
   7-5-session-fork: backlog
   7-6-dynamic-mcp-management: backlog

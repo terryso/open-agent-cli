@@ -31,6 +31,9 @@ struct ParsedArgs {
     var stdin: Bool = false
     var toolAllow: [String]? = nil
     var toolDeny: [String]? = nil
+    /// Tracks which value flags were explicitly set by the user on the command line.
+    /// Used by ConfigLoader.apply() to avoid overriding explicit CLI args with config values.
+    var explicitlySet: Set<String> = []
     var shouldExit: Bool = false
     var exitCode: Int32 = 0
     var errorMessage: String? = nil
@@ -114,6 +117,7 @@ enum ArgumentParser {
             } else if arg == "--model" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
                 result.model = value
+                result.explicitlySet.insert("model")
                 i += 1
             } else if arg == "--mode" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
@@ -121,6 +125,7 @@ enum ArgumentParser {
                     return makeError(result: &result, message: "Invalid mode '\(value)'. Valid modes: \(validModes.sorted().joined(separator: ", ")). Use --help for available options.")
                 }
                 result.mode = value
+                result.explicitlySet.insert("mode")
                 i += 1
             } else if arg == "--tools" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
@@ -128,6 +133,7 @@ enum ArgumentParser {
                     return makeError(result: &result, message: "Invalid tools tier '\(value)'. Valid tiers: \(validToolsTiers.sorted().joined(separator: ", ")). Use --help for available options.")
                 }
                 result.tools = value
+                result.explicitlySet.insert("tools")
                 i += 1
             } else if arg == "--provider" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
@@ -135,6 +141,7 @@ enum ArgumentParser {
                     return makeError(result: &result, message: "Invalid provider '\(value)'. Valid providers: \(validProviders.sorted().joined(separator: ", ")). Use --help for available options.")
                 }
                 result.provider = value
+                result.explicitlySet.insert("provider")
                 i += 1
             } else if arg == "--output" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
@@ -142,6 +149,7 @@ enum ArgumentParser {
                     return makeError(result: &result, message: "Invalid output format '\(value)'. Valid formats: \(validOutputFormats.sorted().joined(separator: ", ")). Use --help for available options.")
                 }
                 result.output = value
+                result.explicitlySet.insert("output")
                 i += 1
             } else if arg == "--log-level" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
@@ -149,6 +157,7 @@ enum ArgumentParser {
                     return makeError(result: &result, message: "Invalid log level '\(value)'. Valid levels: \(validLogLevels.sorted().joined(separator: ", ")). Use --help for available options.")
                 }
                 result.logLevel = value
+                result.explicitlySet.insert("logLevel")
                 i += 1
             } else if arg == "--max-turns" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
@@ -156,6 +165,7 @@ enum ArgumentParser {
                     return makeError(result: &result, message: "Invalid --max-turns value '\(value)'. Must be a positive integer. Use --help for available options.")
                 }
                 result.maxTurns = intVal
+                result.explicitlySet.insert("maxTurns")
                 i += 1
             } else if arg == "--max-budget" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
@@ -163,6 +173,7 @@ enum ArgumentParser {
                     return makeError(result: &result, message: "Invalid --max-budget value '\(value)'. Must be a positive number. Use --help for available options.")
                 }
                 result.maxBudgetUsd = doubleVal
+                result.explicitlySet.insert("maxBudgetUsd")
                 i += 1
             } else if arg == "--thinking" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
@@ -170,46 +181,57 @@ enum ArgumentParser {
                     return makeError(result: &result, message: "Invalid --thinking value '\(value)'. Must be a positive integer (token budget). Use --help for available options.")
                 }
                 result.thinking = intVal
+                result.explicitlySet.insert("thinking")
                 i += 1
             } else if arg == "--mcp" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
                 result.mcpConfigPath = value
+                result.explicitlySet.insert("mcpConfigPath")
                 i += 1
             } else if arg == "--hooks" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
                 result.hooksConfigPath = value
+                result.explicitlySet.insert("hooksConfigPath")
                 i += 1
             } else if arg == "--skill-dir" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
                 result.skillDir = value
+                result.explicitlySet.insert("skillDir")
                 i += 1
             } else if arg == "--skill" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
                 result.skillName = value
+                result.explicitlySet.insert("skillName")
                 i += 1
             } else if arg == "--session" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
                 result.sessionId = value
+                result.explicitlySet.insert("sessionId")
                 i += 1
             } else if arg == "--system-prompt" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
                 result.systemPrompt = value
+                result.explicitlySet.insert("systemPrompt")
                 i += 1
             } else if arg == "--api-key" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
                 result.apiKey = value
+                result.explicitlySet.insert("apiKey")
                 i += 1
             } else if arg == "--base-url" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
                 result.baseURL = value
+                result.explicitlySet.insert("baseURL")
                 i += 1
             } else if arg == "--tool-allow" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
                 result.toolAllow = value.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+                result.explicitlySet.insert("toolAllow")
                 i += 1
             } else if arg == "--tool-deny" {
                 guard let value = nextValue(after: i, in: args, flag: arg, result: &result) else { return result }
                 result.toolDeny = value.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+                result.explicitlySet.insert("toolDeny")
                 i += 1
             } else if arg == "--quiet" {
                 result.quiet = true
@@ -218,6 +240,7 @@ enum ArgumentParser {
             } else if arg == "--debug" || arg == "-d" {
                 result.debug = true
                 result.logLevel = "debug"
+                result.explicitlySet.insert("logLevel")
             } else if arg == "--stdin" {
                 result.stdin = true
             } else if arg == "--" {
@@ -245,8 +268,12 @@ enum ArgumentParser {
         }
 
         // Resolve API key: --api-key flag > OPENAGENT_API_KEY env var
+        // Env var counts as explicitly set to prevent config file override
         if result.apiKey == nil {
-            result.apiKey = ProcessInfo.processInfo.environment["OPENAGENT_API_KEY"]
+            if let envKey = ProcessInfo.processInfo.environment["OPENAGENT_API_KEY"] {
+                result.apiKey = envKey
+                result.explicitlySet.insert("apiKey")
+            }
         }
 
         return result

@@ -16,6 +16,12 @@ struct CLIConfig: Decodable {
     var systemPrompt: String? = nil
     var thinking: Int? = nil
     var logLevel: String? = nil
+    var mcpConfigPath: String? = nil
+    var hooksConfigPath: String? = nil
+    var skillDir: String? = nil
+    var toolAllow: [String]? = nil
+    var toolDeny: [String]? = nil
+    var output: String? = nil
 }
 
 /// Loads CLI configuration from ~/.openagent/config.json.
@@ -54,49 +60,102 @@ enum ConfigLoader {
         }
     }
 
-    /// Apply config values to ParsedArgs, filling in nil fields only.
+    /// Apply config values to ParsedArgs, filling in nil/default fields only.
     /// CLI args and env vars take precedence — config file is the lowest priority.
-    ///
-    /// TODO: Sentinel-value comparison — fields with non-Optional defaults (mode, tools,
-    /// maxTurns, model) compare against hardcoded defaults to detect "user didn't set this."
-    /// This means explicitly passing `--mode default` will still be overridden by the config
-    /// file. Fix by tracking explicitly-set fields in ParsedArgs (e.g., via a Set<String>).
+    /// Uses `explicitlySet` to distinguish "user didn't pass this flag" from
+    /// "user passed this flag with a value that happens to equal the default."
     static func apply(_ config: CLIConfig?, to args: inout ParsedArgs) {
         guard let config = config else { return }
 
-        if args.apiKey == nil, let key = config.apiKey {
+        // Optional fields: fill from config only when args value is nil
+        if !args.explicitlySet.contains("apiKey"), let key = config.apiKey {
             args.apiKey = key
         }
-        if args.baseURL == nil, let url = config.baseURL {
+        if !args.explicitlySet.contains("baseURL"), let url = config.baseURL {
             args.baseURL = url
         }
-        if args.provider == nil, let provider = config.provider {
+        if !args.explicitlySet.contains("provider"), let provider = config.provider {
             args.provider = provider
         }
-        if args.mode == "default", let mode = config.mode {
+        if !args.explicitlySet.contains("mode"), let mode = config.mode {
             args.mode = mode
         }
-        if args.tools == "core", let tools = config.tools {
+        if !args.explicitlySet.contains("tools"), let tools = config.tools {
             args.tools = tools
         }
-        if args.maxTurns == 10, let turns = config.maxTurns {
+        if !args.explicitlySet.contains("maxTurns"), let turns = config.maxTurns {
             args.maxTurns = turns
         }
-        if args.maxBudgetUsd == nil, let budget = config.maxBudgetUsd {
+        if !args.explicitlySet.contains("maxBudgetUsd"), let budget = config.maxBudgetUsd {
             args.maxBudgetUsd = budget
         }
-        if args.systemPrompt == nil, let prompt = config.systemPrompt {
+        if !args.explicitlySet.contains("systemPrompt"), let prompt = config.systemPrompt {
             args.systemPrompt = prompt
         }
-        if args.thinking == nil, let thinking = config.thinking {
+        if !args.explicitlySet.contains("thinking"), let thinking = config.thinking {
             args.thinking = thinking
         }
-        if args.logLevel == nil, let level = config.logLevel {
+        if !args.explicitlySet.contains("logLevel"), let level = config.logLevel {
             args.logLevel = level
         }
-        // model: only override if user didn't explicitly change it from default
-        if args.model == "glm-5.1", let model = config.model {
+        if !args.explicitlySet.contains("model"), let model = config.model {
             args.model = model
+        }
+
+        // New fields (Story 7.3): path configs, tool lists, output format
+        if !args.explicitlySet.contains("mcpConfigPath"), let mcp = config.mcpConfigPath {
+            args.mcpConfigPath = mcp
+        }
+        if !args.explicitlySet.contains("hooksConfigPath"), let hooks = config.hooksConfigPath {
+            args.hooksConfigPath = hooks
+        }
+        if !args.explicitlySet.contains("skillDir"), let skillDir = config.skillDir {
+            args.skillDir = skillDir
+        }
+        if !args.explicitlySet.contains("toolAllow"), let toolAllow = config.toolAllow {
+            args.toolAllow = toolAllow
+        }
+        if !args.explicitlySet.contains("toolDeny"), let toolDeny = config.toolDeny {
+            args.toolDeny = toolDeny
+        }
+        if !args.explicitlySet.contains("output"), let output = config.output {
+            args.output = output
+        }
+
+        // Path validation: warn if config-referenced paths don't exist (AC#6)
+        warnIfMissing(path: args.mcpConfigPath, label: "mcpConfigPath")
+        warnIfMissing(path: args.hooksConfigPath, label: "hooksConfigPath")
+        if let skillDir = args.skillDir, !FileManager.default.fileExists(atPath: skillDir) {
+            let msg = "Warning: Configured skillDir does not exist: \(skillDir)\n"
+            FileHandle.standardError.write(msg.data(using: .utf8)!)
+        }
+    }
+
+    /// Print a warning to stderr if the given path does not exist.
+    private static func warnIfMissing(path: String?, label: String) {
+        guard let path = path else { return }
+        if !FileManager.default.fileExists(atPath: path) {
+            let msg = "Warning: Configured \(label) does not exist: \(path)\n"
+            FileHandle.standardError.write(msg.data(using: .utf8)!)
+        }
+    }
+
+    /// Ensure the configuration directory exists.
+    /// Creates the directory (and parents) if needed. Non-blocking on failure.
+    /// - Parameter at: The directory path to create. Defaults to `~/.openagent/`.
+    static func ensureConfigDirectory(at path: String? = nil) {
+        let dir = path ?? {
+            let full = configFilePath
+            return full.components(separatedBy: "/").dropLast().joined(separator: "/")
+        }()
+        do {
+            try FileManager.default.createDirectory(
+                atPath: dir,
+                withIntermediateDirectories: true
+            )
+        } catch {
+            let msg = "Warning: Could not create config directory \(dir): \(error.localizedDescription)\n"
+            FileHandle.standardError.write(msg.data(using: .utf8)!)
         }
     }
 }
