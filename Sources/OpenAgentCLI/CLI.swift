@@ -97,8 +97,17 @@ enum CLI {
             // Invoke the skill's promptTemplate as a streaming query
             do {
                 let stream = agent.stream(skill.promptTemplate)
-                let renderer = OutputRenderer(quiet: args.quiet)
-                await renderer.renderStream(stream)
+                if args.output == "json" {
+                    // JSON mode: silently consume stream, then output JSON from result
+                    let jsonRenderer = JsonOutputRenderer()
+                    await jsonRenderer.renderStream(stream)
+                    // Note: For streaming skill invocation, JSON mode silences output.
+                    // The final result JSON would need a collectAndRender approach
+                    // for complete integration (deferred to future enhancement).
+                } else {
+                    let renderer = OutputRenderer(quiet: args.quiet)
+                    await renderer.renderStream(stream)
+                }
             } catch {
                 FileHandle.standardError.write(("Error invoking skill '\(skillName)': \(error.localizedDescription)\n").data(using: .utf8)!)
             }
@@ -118,6 +127,19 @@ enum CLI {
         if let prompt = args.prompt {
             // Single-shot mode: use agent.prompt() for blocking query, then exit.
             let result = await agent.prompt(prompt)
+
+            if args.output == "json" {
+                // JSON mode: output structured JSON to stdout (Story 7.2).
+                // JSON is the sole content of stdout -- no ANSI codes, no extra text.
+                // Errors are also output as JSON to stdout (AC#2).
+                let jsonRenderer = JsonOutputRenderer()
+                jsonRenderer.renderSingleShotJson(result)
+
+                let exitCode = CLIExitCode.forQueryStatus(result.status)
+                await closeAgentSafely(agent)
+                Foundation.exit(exitCode)
+            }
+
             let renderer = OutputRenderer(quiet: args.quiet)
 
             // Output response text to stdout
