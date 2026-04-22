@@ -196,7 +196,7 @@ enum AgentFactory {
         for config in configs {
             // AC#4: Skip tools with empty inputSchema
             if config.inputSchema.isEmpty {
-                FileHandle.standardError.write("Warning: Custom tool '\(config.name)' has empty inputSchema, skipping.\n".data(using: .utf8)!)
+                FileHandle.standardError.write("Warning: Custom tool '\(config.name)' has empty inputSchema, skipping.\n".data(using: .utf8) ?? Data())
                 continue
             }
 
@@ -204,11 +204,11 @@ enum AgentFactory {
             let fm = FileManager.default
             var isDir: ObjCBool = false
             if fm.fileExists(atPath: config.execute, isDirectory: &isDir), isDir.boolValue {
-                FileHandle.standardError.write("Warning: Custom tool '\(config.name)' execute path is a directory, skipping: \(config.execute)\n".data(using: .utf8)!)
+                FileHandle.standardError.write("Warning: Custom tool '\(config.name)' execute path is a directory, skipping: \(config.execute)\n".data(using: .utf8) ?? Data())
                 continue
             }
             if !fm.isExecutableFile(atPath: config.execute) {
-                FileHandle.standardError.write("Warning: Custom tool '\(config.name)' execute path not found or not executable: \(config.execute)\n".data(using: .utf8)!)
+                FileHandle.standardError.write("Warning: Custom tool '\(config.name)' execute path not found or not executable: \(config.execute)\n".data(using: .utf8) ?? Data())
                 continue
             }
 

@@ -100,22 +100,17 @@ enum PermissionHandler {
 
     // MARK: - Private Helpers (shared by mode closures)
 
-    /// Format the non-interactive denial message for a tool.
-    private static func nonInteractiveDenialMessage(toolName: String) -> String {
-        "Non-interactive mode: tool '\(toolName)' denied. Use --mode bypassPermissions to allow."
-    }
-
-    /// Check whether a tool should be denied due to non-interactive mode.
-    /// Returns a denial result with a helpful message, or nil if the tool can proceed.
+    /// Check whether a tool should be auto-approved due to non-interactive mode.
+    /// Returns an allow result with a warning message, or nil if interactive (proceed to prompt).
     private static func checkNonInteractive(
         tool: ToolProtocol,
         isInteractive: Bool,
         renderer: OutputRenderer
     ) -> CanUseToolResult? {
         guard !isInteractive else { return nil }
-        let message = nonInteractiveDenialMessage(toolName: tool.name)
+        let message = "Non-interactive mode: auto-approving '\(tool.name)' (use --mode bypassPermissions to suppress this warning)."
         renderer.output.write("\(ANSI.yellow("\u{26A0}")) \(message)\n")
-        return .deny(message)
+        return .allow()
     }
 
     // MARK: - Public API

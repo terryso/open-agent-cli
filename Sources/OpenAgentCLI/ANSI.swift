@@ -49,4 +49,13 @@ enum ANSI {
     static func clear() -> String {
         "\u{001B}[2J\u{001B}[H"
     }
+
+    /// Write a message to stderr safely, without force-unwrapping.
+    ///
+    /// Uses `?? Data()` fallback because `String.data(using: .utf8)` only
+    /// returns nil for strings with non-Unicode scalars, which is impossible
+    /// with our hardcoded ASCII error messages.
+    static func writeToStderr(_ message: String) {
+        FileHandle.standardError.write(message.data(using: .utf8) ?? Data())
+    }
 }

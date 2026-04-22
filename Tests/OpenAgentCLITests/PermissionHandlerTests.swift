@@ -876,8 +876,8 @@ final class PermissionHandlerTests: XCTestCase {
             "Empty input should default to deny (AC#3)")
     }
 
-    /// AC#3: Non-interactive mode in default mode should deny write tools with warning.
-    func testNonInteractive_defaultMode_deniesWriteTool() async throws {
+    /// AC#3: Non-interactive mode in default mode should auto-approve write tools with warning.
+    func testNonInteractive_defaultMode_autoApprovesWriteTool() async throws {
         let (reader, output) = makeMocks(lines: [])
 
         let canUseTool = PermissionHandler.createCanUseTool(
@@ -890,10 +890,10 @@ final class PermissionHandlerTests: XCTestCase {
         let writeTool = MockTool(name: "Write", isReadOnly: false)
         let result = await canUseTool(writeTool, ["file_path": "/tmp/out.txt"], makeContext())
 
-        XCTAssertEqual(result?.behavior, .deny,
-            "Non-interactive default mode should deny write tools (AC#3)")
-        XCTAssertTrue(output.output.contains("Non-interactive") || output.output.contains("bypassPermissions") || output.output.contains("non-interactive"),
-            "Non-interactive denial should contain helpful message about --mode bypassPermissions (AC#3)")
+        XCTAssertEqual(result?.behavior, .allow,
+            "Non-interactive default mode should auto-approve write tools (AC#5)")
+        XCTAssertTrue(output.output.contains("Non-interactive") || output.output.contains("auto-approving") || output.output.contains("bypassPermissions") || output.output.contains("non-interactive"),
+            "Non-interactive auto-approval should contain helpful message (AC#3)")
         XCTAssertEqual(reader.callCount, 0,
             "Non-interactive mode should not prompt for input (AC#3)")
     }
@@ -916,8 +916,8 @@ final class PermissionHandlerTests: XCTestCase {
             "Non-interactive default mode should still auto-allow read-only tools (AC#3)")
     }
 
-    /// AC#3: Non-interactive mode in plan mode should deny all tools with warning.
-    func testNonInteractive_planMode_deniesAllTools() async throws {
+    /// AC#3: Non-interactive mode in plan mode should auto-approve all tools with warning.
+    func testNonInteractive_planMode_autoApprovesAllTools() async throws {
         let (reader, output) = makeMocks(lines: [])
 
         let canUseTool = PermissionHandler.createCanUseTool(
@@ -930,10 +930,10 @@ final class PermissionHandlerTests: XCTestCase {
         let readTool = MockTool(name: "Read", isReadOnly: true)
         let result = await canUseTool(readTool, ["file_path": "/tmp/test.txt"], makeContext())
 
-        XCTAssertEqual(result?.behavior, .deny,
-            "Non-interactive plan mode should deny even read-only tools (AC#3)")
-        XCTAssertTrue(output.output.contains("Non-interactive") || output.output.contains("bypassPermissions"),
-            "Non-interactive plan denial should mention bypassPermissions (AC#3)")
+        XCTAssertEqual(result?.behavior, .allow,
+            "Non-interactive plan mode should auto-approve even read-only tools (AC#5)")
+        XCTAssertTrue(output.output.contains("Non-interactive") || output.output.contains("auto-approving") || output.output.contains("bypassPermissions"),
+            "Non-interactive plan auto-approval should mention auto-approving or bypassPermissions (AC#3)")
     }
 
     /// AC#1: Non-interactive mode in bypassPermissions should still auto-allow all tools.
@@ -954,8 +954,8 @@ final class PermissionHandlerTests: XCTestCase {
             "Non-interactive bypassPermissions should still auto-allow all tools (AC#1)")
     }
 
-    /// Non-interactive mode in acceptEdits should deny non-edit write tools.
-    func testNonInteractive_acceptEdits_deniesNonEditWrite() async throws {
+    /// Non-interactive mode in acceptEdits should auto-approve non-edit write tools.
+    func testNonInteractive_acceptEdits_autoApprovesNonEditWrite() async throws {
         let (reader, output) = makeMocks(lines: [])
 
         let canUseTool = PermissionHandler.createCanUseTool(
@@ -968,8 +968,8 @@ final class PermissionHandlerTests: XCTestCase {
         let writeTool = MockTool(name: "Write", isReadOnly: false)
         let result = await canUseTool(writeTool, ["file_path": "/tmp/out.txt"], makeContext())
 
-        XCTAssertEqual(result?.behavior, .deny,
-            "Non-interactive acceptEdits should deny non-edit write tools (AC#3)")
+        XCTAssertEqual(result?.behavior, .allow,
+            "Non-interactive acceptEdits should auto-approve non-edit write tools (AC#5)")
     }
 
     /// Non-interactive mode in acceptEdits should still auto-allow Edit tools.

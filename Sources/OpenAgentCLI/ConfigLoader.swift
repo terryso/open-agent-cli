@@ -189,7 +189,7 @@ enum ConfigLoader {
             return config
         } catch {
             let msg = "Warning: Failed to parse \(path): \(error.localizedDescription)\n"
-            FileHandle.standardError.write(msg.data(using: .utf8)!)
+            ANSI.writeToStderr(msg)
             return nil
         }
     }
@@ -266,7 +266,7 @@ enum ConfigLoader {
         warnIfMissing(path: args.hooksConfigPath, label: "hooksConfigPath")
         if let skillDir = args.skillDir, !FileManager.default.fileExists(atPath: skillDir) {
             let msg = "Warning: Configured skillDir does not exist: \(skillDir)\n"
-            FileHandle.standardError.write(msg.data(using: .utf8)!)
+            ANSI.writeToStderr(msg)
         }
     }
 
@@ -275,7 +275,7 @@ enum ConfigLoader {
         guard let path = path else { return }
         if !FileManager.default.fileExists(atPath: path) {
             let msg = "Warning: Configured \(label) does not exist: \(path)\n"
-            FileHandle.standardError.write(msg.data(using: .utf8)!)
+            ANSI.writeToStderr(msg)
         }
     }
 
@@ -294,7 +294,7 @@ enum ConfigLoader {
             )
         } catch {
             let msg = "Warning: Could not create config directory \(dir): \(error.localizedDescription)\n"
-            FileHandle.standardError.write(msg.data(using: .utf8)!)
+            ANSI.writeToStderr(msg)
         }
     }
 }

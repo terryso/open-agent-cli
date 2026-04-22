@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-19
-last_updated: 2026-04-22T18:05:00
+last_updated: 2026-04-22T23:42:00
 project: open-agent-cli
 project_key: NOKEY
 tracking_system: file-system
@@ -98,3 +98,8 @@ development_status:
   7-6-dynamic-mcp-management: done
   7-7-skills-listing-and-custom-tool-registration: done
   epic-7-retrospective: optional
+
+  # Epic 8: Technical Debt & Validation (Post-PRD)
+  epic-8: in-progress
+  8-1-technical-debt-cleanup: done
+  epic-8-retrospective: optional

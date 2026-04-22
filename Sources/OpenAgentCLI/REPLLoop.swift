@@ -47,7 +47,7 @@ final class AgentHolder {
 /// Uses class reference semantics (like ``AgentHolder``) so that ``REPLLoop``
 /// — a struct with non-mutating methods — can accumulate values across calls
 /// without needing `mutating` access.
-final class CostTracker {
+final class CostTracker: @unchecked Sendable {
     var cumulativeCostUsd: Double = 0.0
     var cumulativeInputTokens: Int = 0
     var cumulativeOutputTokens: Int = 0
@@ -365,39 +365,9 @@ struct REPLLoop {
             return
         }
 
-        var forkArgs = ParsedArgs(
-            helpRequested: args.helpRequested,
-            versionRequested: args.versionRequested,
-            prompt: args.prompt,
-            model: args.model,
-            apiKey: args.apiKey,
-            baseURL: args.baseURL,
-            provider: args.provider,
-            mode: args.mode,
-            tools: args.tools,
-            mcpConfigPath: args.mcpConfigPath,
-            hooksConfigPath: args.hooksConfigPath,
-            skillDir: args.skillDir,
-            skillName: args.skillName,
-            sessionId: forkedId,
-            noRestore: args.noRestore,
-            maxTurns: args.maxTurns,
-            maxBudgetUsd: args.maxBudgetUsd,
-            systemPrompt: args.systemPrompt,
-            thinking: args.thinking,
-            quiet: args.quiet,
-            output: args.output,
-            logLevel: args.logLevel,
-            debug: args.debug,
-            toolAllow: args.toolAllow,
-            toolDeny: args.toolDeny,
-            shouldExit: args.shouldExit,
-            exitCode: args.exitCode,
-            errorMessage: args.errorMessage,
-            helpMessage: args.helpMessage
-        )
-        forkArgs.explicitlySet = args.explicitlySet
-        forkArgs.customTools = args.customTools
+        // Use struct copy to preserve ALL fields (explicitlySet, customTools, etc.)
+        var forkArgs = args
+        forkArgs.sessionId = forkedId
 
         do {
             let (newAgent, _) = try await AgentFactory.createAgent(from: forkArgs)
@@ -413,6 +383,8 @@ struct REPLLoop {
             let shortId = String(forkedId.prefix(8))
             renderer.output.write("Session forked. New session: \(shortId)...\n")
         } catch {
+            // AC#7: Clean up orphaned session if agent creation fails
+            _ = try? await store.delete(sessionId: forkedId)
             renderer.output.write("Error creating forked session: \(error.localizedDescription)\n")
         }
     }
@@ -586,40 +558,9 @@ struct REPLLoop {
             return
         }
 
-        // Override the sessionId to the target session
-        var resumeArgs = ParsedArgs(
-            helpRequested: args.helpRequested,
-            versionRequested: args.versionRequested,
-            prompt: args.prompt,
-            model: args.model,
-            apiKey: args.apiKey,
-            baseURL: args.baseURL,
-            provider: args.provider,
-            mode: args.mode,
-            tools: args.tools,
-            mcpConfigPath: args.mcpConfigPath,
-            hooksConfigPath: args.hooksConfigPath,
-            skillDir: args.skillDir,
-            skillName: args.skillName,
-            sessionId: sessionId,
-            noRestore: args.noRestore,
-            maxTurns: args.maxTurns,
-            maxBudgetUsd: args.maxBudgetUsd,
-            systemPrompt: args.systemPrompt,
-            thinking: args.thinking,
-            quiet: args.quiet,
-            output: args.output,
-            logLevel: args.logLevel,
-            debug: args.debug,
-            toolAllow: args.toolAllow,
-            toolDeny: args.toolDeny,
-            shouldExit: args.shouldExit,
-            exitCode: args.exitCode,
-            errorMessage: args.errorMessage,
-            helpMessage: args.helpMessage
-        )
-        resumeArgs.explicitlySet = args.explicitlySet
-        resumeArgs.customTools = args.customTools
+        // Use struct copy to preserve ALL fields (explicitlySet, customTools, etc.)
+        var resumeArgs = args
+        resumeArgs.sessionId = sessionId
 
         do {
             let (newAgent, _) = try await AgentFactory.createAgent(from: resumeArgs)

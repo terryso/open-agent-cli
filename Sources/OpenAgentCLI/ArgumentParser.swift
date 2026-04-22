@@ -278,6 +278,11 @@ enum ArgumentParser {
             }
         }
 
+        // Validate mutual exclusion: --stdin and --skill cannot be used together
+        if result.stdin && result.skillName != nil {
+            return makeError(result: &result, message: "Cannot use --stdin and --skill together. Both provide prompt content; choose one.")
+        }
+
         return result
     }
 

@@ -1,5 +1,10 @@
 import Foundation
 import OpenAgentSDK
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 
 /// Top-level CLI orchestrator.
 ///
@@ -27,7 +32,7 @@ enum CLI {
         if args.shouldExit {
             // Error case: print error to stderr
             if let error = args.errorMessage {
-                FileHandle.standardError.write((error + "\n").data(using: .utf8)!)
+                ANSI.writeToStderr(error + "\n")
             }
             Foundation.exit(args.exitCode)
         }
@@ -43,16 +48,14 @@ enum CLI {
             if args.prompt == nil {
                 do {
                     guard let stdinContent = try readStdin() else {
-                        FileHandle.standardError.write(
-                            ("Error: --stdin specified but no input received on standard input.\n")
-                                .data(using: .utf8)!)
+                        ANSI.writeToStderr(
+                            "Error: --stdin specified but no input received on standard input.\n"
+                        )
                         Foundation.exit(1)
                     }
                     args.prompt = stdinContent
                 } catch {
-                    FileHandle.standardError.write(
-                        (error.localizedDescription)
-                            .data(using: .utf8)!)
+                    ANSI.writeToStderr(error.localizedDescription)
                     Foundation.exit(1)
                 }
             }
@@ -84,13 +87,13 @@ enum CLI {
         // Handle --skill auto-invocation
         if let skillName = args.skillName {
             guard let registry = skillRegistry else {
-                FileHandle.standardError.write(("Skill not found: \(skillName)\n").data(using: .utf8)!)
+                ANSI.writeToStderr("Skill not found: \(skillName)\n")
                 Foundation.exit(1)
             }
 
             guard let skill = registry.find(skillName) else {
                 let available = registry.allSkills.map { $0.name }.sorted().joined(separator: ", ")
-                FileHandle.standardError.write(("Skill not found: \(skillName)\nAvailable skills: \(available)\n").data(using: .utf8)!)
+                ANSI.writeToStderr("Skill not found: \(skillName)\nAvailable skills: \(available)\n")
                 Foundation.exit(1)
             }
 
@@ -109,7 +112,7 @@ enum CLI {
                     await renderer.renderStream(stream)
                 }
             } catch {
-                FileHandle.standardError.write(("Error invoking skill '\(skillName)': \(error.localizedDescription)\n").data(using: .utf8)!)
+                ANSI.writeToStderr("Error invoking skill '\(skillName)': \(error.localizedDescription)\n")
             }
 
             // If no positional prompt, enter REPL; otherwise let single-shot handle it
@@ -159,7 +162,7 @@ enum CLI {
             // For non-success statuses, write error to stderr
             let errorMessage = CLISingleShot.formatErrorMessage(result, debug: isDebug)
             if !errorMessage.isEmpty {
-                FileHandle.standardError.write((errorMessage + "\n").data(using: .utf8)!)
+                ANSI.writeToStderr(errorMessage + "\n")
             }
 
             await closeAgentSafely(agent)
@@ -190,6 +193,10 @@ enum CLI {
     /// This method should only be called when `--stdin` flag is set to avoid
     /// blocking on terminal input.
     static func readStdin() throws -> String? {
+        // Guard against reading from a terminal (tty), which would block forever.
+        if isatty(STDIN_FILENO) != 0 {
+            throw StdinError.terminalInput
+        }
         let data = FileHandle.standardInput.readDataToEndOfFile()
         guard let rawText = String(data: data, encoding: .utf8) else {
             throw StdinError.invalidEncoding
@@ -201,11 +208,14 @@ enum CLI {
     /// Errors that can occur during stdin reading.
     enum StdinError: Error, LocalizedError {
         case invalidEncoding
+        case terminalInput
 
         var errorDescription: String? {
             switch self {
             case .invalidEncoding:
                 return "Error: --stdin received data that is not valid UTF-8.\n"
+            case .terminalInput:
+                return "Error: --stdin requires piped input. Use 'echo \"text\" | openagent --stdin'.\n"
             }
         }
     }
@@ -216,7 +226,7 @@ enum CLI {
             return try await AgentFactory.createAgent(from: args)
         } catch {
             let msg = "Error: \(error.localizedDescription)"
-            FileHandle.standardError.write((msg + "\n").data(using: .utf8)!)
+            ANSI.writeToStderr(msg + "\n")
             Foundation.exit(1)
         }
     }
@@ -231,7 +241,7 @@ enum CLI {
             try await agent.close()
         } catch {
             let warning = "Warning: Failed to save session: \(error.localizedDescription)"
-            FileHandle.standardError.write((warning + "\n").data(using: .utf8)!)
+            ANSI.writeToStderr(warning + "\n")
         }
     }
 }
