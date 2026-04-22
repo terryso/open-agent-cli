@@ -198,6 +198,8 @@ struct REPLLoop {
             handleCost()
         case "/clear":
             handleClear()
+        case "/fork":
+            await handleFork()
         default:
             // Unknown command
             renderer.output.write("Unknown command: \(input). Type /help for available commands.\n")
@@ -218,6 +220,7 @@ struct REPLLoop {
           /clear             Clear conversation history and reset cost tracker
           /sessions          List saved sessions
           /resume <id>       Resume a saved session
+          /fork              Fork the current session into a new branch
           /exit              Exit the REPL
           /quit              Exit the REPL
         """
@@ -322,6 +325,95 @@ struct REPLLoop {
         agentHolder.agent.clear()
         costTracker.reset()
         renderer.output.write("Conversation cleared. Starting a new session.\n")
+    }
+
+    // MARK: - /fork command (Story 7.5)
+
+    /// Handle the /fork command: fork the current session into a new branch.
+    ///
+    /// Creates a new session that copies the conversation history from the
+    /// current session, then switches the agent to the new forked session.
+    private func handleFork() async {
+        // AC#4: Verify SessionStore is available
+        guard let store = sessionStore else {
+            renderer.output.write("No session storage available.\n")
+            return
+        }
+
+        // AC#5: Verify current session exists
+        guard let currentSessionId = agentHolder.agent.getSessionId() else {
+            renderer.output.write("No active session to fork.\n")
+            return
+        }
+
+        // AC#1: Fork the session via SessionStore
+        let forkedId: String
+        do {
+            guard let id = try await store.fork(sourceSessionId: currentSessionId) else {
+                renderer.output.write("Error: Source session not found.\n")
+                return
+            }
+            forkedId = id
+        } catch {
+            // AC#6: Display error message, original session unaffected
+            renderer.output.write("Error forking session: \(error.localizedDescription)\n")
+            return
+        }
+
+        // Create a new Agent using the forked session ID
+        guard let args = parsedArgs else {
+            renderer.output.write("Cannot fork: configuration not available.\n")
+            return
+        }
+
+        let forkArgs = ParsedArgs(
+            helpRequested: args.helpRequested,
+            versionRequested: args.versionRequested,
+            prompt: args.prompt,
+            model: args.model,
+            apiKey: args.apiKey,
+            baseURL: args.baseURL,
+            provider: args.provider,
+            mode: args.mode,
+            tools: args.tools,
+            mcpConfigPath: args.mcpConfigPath,
+            hooksConfigPath: args.hooksConfigPath,
+            skillDir: args.skillDir,
+            skillName: args.skillName,
+            sessionId: forkedId,
+            noRestore: args.noRestore,
+            maxTurns: args.maxTurns,
+            maxBudgetUsd: args.maxBudgetUsd,
+            systemPrompt: args.systemPrompt,
+            thinking: args.thinking,
+            quiet: args.quiet,
+            output: args.output,
+            logLevel: args.logLevel,
+            debug: args.debug,
+            toolAllow: args.toolAllow,
+            toolDeny: args.toolDeny,
+            shouldExit: args.shouldExit,
+            exitCode: args.exitCode,
+            errorMessage: args.errorMessage,
+            helpMessage: args.helpMessage
+        )
+
+        do {
+            let (newAgent, _) = try await AgentFactory.createAgent(from: forkArgs)
+            // Save current agent session
+            do {
+                try await agentHolder.agent.close()
+            } catch {
+                renderer.output.write("Warning: failed to save current session (\(error.localizedDescription)).\n")
+            }
+            // Switch to forked session
+            agentHolder.agent = newAgent
+            // AC#3: Display confirmation with short ID
+            let shortId = String(forkedId.prefix(8))
+            renderer.output.write("Session forked. New session: \(shortId)...\n")
+        } catch {
+            renderer.output.write("Error creating forked session: \(error.localizedDescription)\n")
+        }
     }
 
     // MARK: - /sessions command (Story 3.2)

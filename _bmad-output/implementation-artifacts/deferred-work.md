@@ -1,5 +1,10 @@
 # Deferred Work
 
+## Deferred from: code review of 7-5-session-fork.md (2026-04-22)
+
+- **Missing `stdin` and `explicitlySet` in ParsedArgs copy** — `handleFork()` constructs a new ParsedArgs by copying fields one-by-one but omits `stdin` and `explicitlySet`, relying on defaults (`false` and `[]`). This means user-explicit CLI settings (e.g. `--model`, `--baseURL`) lose their "explicitly set" status after fork, potentially causing ConfigLoader to re-apply config values. Pre-existing issue: `handleResume()` has the same pattern. Fix both together in a future cleanup story.
+- **No cleanup of forked session on AgentFactory failure** — If `SessionStore.fork()` succeeds but `AgentFactory.createAgent()` fails, the forked session data remains on disk as an orphan. This is acceptable: the orphan is a valid session that can be resumed later, and the original session is preserved. Low priority cleanup opportunity.
+
 ## Deferred from: code review of 7-1-pipe-stdin-input-mode.md (2026-04-21)
 
 - **readStdin() hangs on terminal stdin**: `readDataToEndOfFile()` blocks indefinitely when stdin is a terminal. Spec explicitly forbids auto-detection of pipes ("不要自动检测管道"). Consider adding a timeout or interactive prompt in a future story.
