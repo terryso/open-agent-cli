@@ -131,42 +131,37 @@ struct REPLLoop {
             // AC#2, AC#3: Send to Agent and render stream with interrupt checking.
             // Instead of using renderer.renderStream(), we manually iterate
             // the stream so we can check SignalHandler between messages.
-            do {
-                let stream = agentHolder.agent.stream(trimmed)
-                for await message in stream {
-                    // Intercept result messages to track cumulative cost
-                    if case .result(let data) = message {
-                        costTracker.cumulativeCostUsd += data.totalCostUsd
-                        if let usage = data.usage {
-                            costTracker.cumulativeInputTokens += usage.inputTokens
-                            costTracker.cumulativeOutputTokens += usage.outputTokens
-                        }
+            let stream = agentHolder.agent.stream(trimmed)
+            for await message in stream {
+                // Intercept result messages to track cumulative cost
+                if case .result(let data) = message {
+                    costTracker.cumulativeCostUsd += data.totalCostUsd
+                    if let usage = data.usage {
+                        costTracker.cumulativeInputTokens += usage.inputTokens
+                        costTracker.cumulativeOutputTokens += usage.outputTokens
                     }
-                    let event = SignalHandler.check()
-                    if event == .interrupt || event == .forceExit || event == .terminate {
-                        agentHolder.agent.interrupt()
-                        renderer.output.write("^C\n")
-                        if event == .forceExit || event == .terminate {
-                            return  // Exit REPL immediately
-                        }
-                        break  // Break inner stream loop, continue REPL while loop
-                    }
-                    renderer.render(message)
                 }
-                // Also check for pending signals after stream completes.
-                // This handles the case where the signal arrives during the
-                // last stream iteration but is only processed after for-await exits.
-                let postCheck = SignalHandler.check()
-                if postCheck == .interrupt || postCheck == .forceExit || postCheck == .terminate {
+                let event = SignalHandler.check()
+                if event == .interrupt || event == .forceExit || event == .terminate {
                     agentHolder.agent.interrupt()
                     renderer.output.write("^C\n")
-                    if postCheck == .forceExit || postCheck == .terminate {
-                        return
+                    if event == .forceExit || event == .terminate {
+                        return  // Exit REPL immediately
                     }
+                    break  // Break inner stream loop, continue REPL while loop
                 }
-            } catch {
-                renderer.output.write("Error: \(error.localizedDescription)\n")
-                // Continue REPL loop -- never crash at REPL boundary
+                renderer.render(message)
+            }
+            // Also check for pending signals after stream completes.
+            // This handles the case where the signal arrives during the
+            // last stream iteration but is only processed after for-await exits.
+            let postCheck = SignalHandler.check()
+            if postCheck == .interrupt || postCheck == .forceExit || postCheck == .terminate {
+                agentHolder.agent.interrupt()
+                renderer.output.write("^C\n")
+                if postCheck == .forceExit || postCheck == .terminate {
+                    return
+                }
             }
         }
     }
@@ -200,6 +195,8 @@ struct REPLLoop {
             handleClear()
         case "/fork":
             await handleFork()
+        case "/mcp":
+            await handleMcp(parts: parts)
         default:
             // Unknown command
             renderer.output.write("Unknown command: \(input). Type /help for available commands.\n")
@@ -221,6 +218,8 @@ struct REPLLoop {
           /sessions          List saved sessions
           /resume <id>       Resume a saved session
           /fork              Fork the current session into a new branch
+          /mcp status              Show MCP server connection status
+          /mcp reconnect <name>    Reconnect an MCP server
           /exit              Exit the REPL
           /quit              Exit the REPL
         """
@@ -413,6 +412,76 @@ struct REPLLoop {
             renderer.output.write("Session forked. New session: \(shortId)...\n")
         } catch {
             renderer.output.write("Error creating forked session: \(error.localizedDescription)\n")
+        }
+    }
+
+    // MARK: - /mcp command (Story 7.6)
+
+    /// Handle the /mcp command group: dispatch to subcommands.
+    private func handleMcp(parts: [Substring]) async {
+        // Parse subcommand and optional argument from parts[1]
+        let subcommand: String
+        let subArgs: String?
+
+        if parts.count > 1 {
+            let subParts = parts[1].split(separator: " ", maxSplits: 1)
+            subcommand = String(subParts[0]).lowercased()
+            subArgs = subParts.count > 1 ? String(subParts[1]).trimmingCharacters(in: .whitespaces) : nil
+        } else {
+            subcommand = ""
+            subArgs = nil
+        }
+
+        switch subcommand {
+        case "status":
+            await handleMcpStatus()
+        case "reconnect":
+            guard let name = subArgs, !name.isEmpty else {
+                renderer.output.write("Usage: /mcp reconnect <name>\n")
+                return
+            }
+            await handleMcpReconnect(serverName: name)
+        default:
+            // AC#5: No subcommand or unknown subcommand shows help
+            renderer.output.write("MCP commands:\n")
+            renderer.output.write("  /mcp status              Show MCP server status\n")
+            renderer.output.write("  /mcp reconnect <name>    Reconnect a server\n")
+        }
+    }
+
+    /// Handle /mcp status: display connection status of all MCP servers.
+    private func handleMcpStatus() async {
+        let statuses = await agentHolder.agent.mcpServerStatus()
+        if statuses.isEmpty {
+            renderer.output.write("No MCP servers configured.\n")
+            return
+        }
+        renderer.output.write("MCP Servers:\n")
+        for (name, status) in statuses.sorted(by: { $0.key < $1.key }) {
+            let toolCount = status.tools.count
+            renderer.output.write("  \(name): \(status.status.rawValue)")
+            if let info = status.serverInfo {
+                renderer.output.write(" (\(info.name) v\(info.version))")
+            }
+            if !status.tools.isEmpty {
+                renderer.output.write(" — \(toolCount) tool\(toolCount == 1 ? "" : "s")")
+            }
+            if let error = status.error {
+                renderer.output.write("\n    Error: \(error)")
+            }
+            renderer.output.write("\n")
+        }
+    }
+
+    /// Handle /mcp reconnect <name>: reconnect a specific MCP server.
+    private func handleMcpReconnect(serverName: String) async {
+        do {
+            try await agentHolder.agent.reconnectMcpServer(name: serverName)
+            renderer.output.write("Reconnected \(serverName).\n")
+        } catch is MCPClientManagerError {
+            renderer.output.write("Server not found: \(serverName)\n")
+        } catch {
+            renderer.output.write("Error reconnecting \(serverName): \(error.localizedDescription)\n")
         }
     }
 
