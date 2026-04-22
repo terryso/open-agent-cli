@@ -69,7 +69,7 @@ enum CLI {
         // Dispatch based on mode
         let (agent, sessionStore) = await createAgentOrExit(from: args)
 
-        if !args.quiet {
+        if !args.quiet && args.output != "json" {
             if args.mcpConfigPath != nil {
                 let renderer = OutputRenderer()
                 renderer.output.write("[MCP servers configured]\n")
