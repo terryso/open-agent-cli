@@ -32,5 +32,10 @@ let package = Package(
             dependencies: ["OpenAgentCLI"],
             path: "Tests/OpenAgentCLITests"
         ),
+        .testTarget(
+            name: "OpenAgentE2ETests",
+            dependencies: ["OpenAgentCLI"],
+            path: "Tests/OpenAgentE2ETests"
+        ),
     ]
 )
