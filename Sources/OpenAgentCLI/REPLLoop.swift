@@ -512,13 +512,34 @@ struct REPLLoop {
                 if let firstPrompt = session.firstPrompt {
                     preview = String(firstPrompt.prefix(50))
                 } else {
-                    preview = "(no preview)"
+                    preview = await extractFirstPrompt(store: store, sessionId: session.id, messageCount: session.messageCount) ?? "(no preview)"
                 }
                 renderer.output.write("  \(shortId)  \(timeStr)  \(session.messageCount) msgs  \"\(preview)\"\n")
             }
         } catch {
             renderer.output.write("Error listing sessions: \(error.localizedDescription)\n")
         }
+    }
+
+    /// Extract the first user message from a session as a preview fallback.
+    private func extractFirstPrompt(store: SessionStore, sessionId: String, messageCount: Int) async -> String? {
+        guard messageCount > 0 else { return nil }
+        guard let data = try? await store.load(sessionId: sessionId, limit: 1) else { return nil }
+        let messages = data.messages
+        for msg in messages {
+            guard msg["role"] as? String == "user" else { continue }
+            if let content = msg["content"] as? String {
+                return String(content.prefix(50))
+            }
+            if let content = msg["content"] as? [[String: Any]] {
+                for block in content {
+                    if block["type"] as? String == "text", let text = block["text"] as? String {
+                        return String(text.prefix(50))
+                    }
+                }
+            }
+        }
+        return nil
     }
 
     // MARK: - /resume command (Story 3.2)
