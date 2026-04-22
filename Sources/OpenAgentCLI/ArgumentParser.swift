@@ -31,6 +31,8 @@ struct ParsedArgs {
     var stdin: Bool = false
     var toolAllow: [String]? = nil
     var toolDeny: [String]? = nil
+    /// Custom tools loaded from config file (Story 7.7).
+    var customTools: [CustomToolConfig]? = nil
     /// Tracks which value flags were explicitly set by the user on the command line.
     /// Used by ConfigLoader.apply() to avoid overriding explicit CLI args with config values.
     var explicitlySet: Set<String> = []

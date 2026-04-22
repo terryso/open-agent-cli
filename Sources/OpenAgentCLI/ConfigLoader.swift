@@ -1,5 +1,46 @@
 import Foundation
 
+/// Configuration for a custom tool registered via config file.
+///
+/// Custom tools are defined in `~/.openagent/config.json` under the `customTools` array.
+/// Each tool has a name, description, JSON Schema for input, and an executable script path.
+/// The script receives JSON input via stdin and returns output via stdout.
+struct CustomToolConfig {
+    let name: String
+    let description: String
+    let inputSchema: [String: Any]
+    let execute: String
+    let isReadOnly: Bool?
+
+    /// Programmatic initializer for use in tests and factory methods.
+    init(name: String, description: String, inputSchema: [String: Any], execute: String, isReadOnly: Bool?) {
+        self.name = name
+        self.description = description
+        self.inputSchema = inputSchema
+        self.execute = execute
+        self.isReadOnly = isReadOnly
+    }
+
+    /// Parse a single custom tool from a JSON dictionary.
+    /// Returns nil if required fields are missing or inputSchema is not a dictionary.
+    static func fromDictionary(_ dict: [String: Any]) -> CustomToolConfig? {
+        guard let name = dict["name"] as? String,
+              let description = dict["description"] as? String,
+              let schema = dict["inputSchema"] as? [String: Any],
+              let execute = dict["execute"] as? String else {
+            return nil
+        }
+        let isReadOnly = dict["isReadOnly"] as? Bool
+        return CustomToolConfig(
+            name: name,
+            description: description,
+            inputSchema: schema,
+            execute: execute,
+            isReadOnly: isReadOnly
+        )
+    }
+}
+
 /// Configuration loaded from ~/.openagent/config.json.
 ///
 /// All fields are optional — only the fields present in the JSON are used
@@ -22,6 +63,82 @@ struct CLIConfig: Decodable {
     var toolAllow: [String]? = nil
     var toolDeny: [String]? = nil
     var output: String? = nil
+    /// Custom tools parsed manually via JSONSerialization (not Decodable).
+    var customTools: [CustomToolConfig]? = nil
+
+    // Explicit coding keys (excludes customTools which is handled separately)
+    private enum CodingKeys: String, CodingKey {
+        case apiKey, baseURL, model, provider, mode, tools
+        case maxTurns, maxBudgetUsd, systemPrompt, thinking, logLevel
+        case mcpConfigPath, hooksConfigPath, skillDir
+        case toolAllow, toolDeny, output
+    }
+
+    // Custom Decodable init: decode all standard fields, skip customTools
+    // (customTools is populated separately in ConfigLoader.load() via JSONSerialization)
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        apiKey = try container.decodeIfPresent(String.self, forKey: .apiKey)
+        baseURL = try container.decodeIfPresent(String.self, forKey: .baseURL)
+        model = try container.decodeIfPresent(String.self, forKey: .model)
+        provider = try container.decodeIfPresent(String.self, forKey: .provider)
+        mode = try container.decodeIfPresent(String.self, forKey: .mode)
+        tools = try container.decodeIfPresent(String.self, forKey: .tools)
+        maxTurns = try container.decodeIfPresent(Int.self, forKey: .maxTurns)
+        maxBudgetUsd = try container.decodeIfPresent(Double.self, forKey: .maxBudgetUsd)
+        systemPrompt = try container.decodeIfPresent(String.self, forKey: .systemPrompt)
+        thinking = try container.decodeIfPresent(Int.self, forKey: .thinking)
+        logLevel = try container.decodeIfPresent(String.self, forKey: .logLevel)
+        mcpConfigPath = try container.decodeIfPresent(String.self, forKey: .mcpConfigPath)
+        hooksConfigPath = try container.decodeIfPresent(String.self, forKey: .hooksConfigPath)
+        skillDir = try container.decodeIfPresent(String.self, forKey: .skillDir)
+        toolAllow = try container.decodeIfPresent([String].self, forKey: .toolAllow)
+        toolDeny = try container.decodeIfPresent([String].self, forKey: .toolDeny)
+        output = try container.decodeIfPresent(String.self, forKey: .output)
+        // customTools is NOT decoded here -- populated by ConfigLoader.load()
+        customTools = nil
+    }
+
+    // Memberwise init for programmatic construction (used by tests)
+    init(
+        apiKey: String? = nil,
+        baseURL: String? = nil,
+        model: String? = nil,
+        provider: String? = nil,
+        mode: String? = nil,
+        tools: String? = nil,
+        maxTurns: Int? = nil,
+        maxBudgetUsd: Double? = nil,
+        systemPrompt: String? = nil,
+        thinking: Int? = nil,
+        logLevel: String? = nil,
+        mcpConfigPath: String? = nil,
+        hooksConfigPath: String? = nil,
+        skillDir: String? = nil,
+        toolAllow: [String]? = nil,
+        toolDeny: [String]? = nil,
+        output: String? = nil,
+        customTools: [CustomToolConfig]? = nil
+    ) {
+        self.apiKey = apiKey
+        self.baseURL = baseURL
+        self.model = model
+        self.provider = provider
+        self.mode = mode
+        self.tools = tools
+        self.maxTurns = maxTurns
+        self.maxBudgetUsd = maxBudgetUsd
+        self.systemPrompt = systemPrompt
+        self.thinking = thinking
+        self.logLevel = logLevel
+        self.mcpConfigPath = mcpConfigPath
+        self.hooksConfigPath = hooksConfigPath
+        self.skillDir = skillDir
+        self.toolAllow = toolAllow
+        self.toolDeny = toolDeny
+        self.output = output
+        self.customTools = customTools
+    }
 }
 
 /// Loads CLI configuration from ~/.openagent/config.json.
@@ -42,6 +159,10 @@ enum ConfigLoader {
     }
 
     /// Load configuration from a specific path (testable).
+    ///
+    /// Two-pass loading: JSONDecoder for standard Decodable fields,
+    /// then JSONSerialization for the customTools array (which contains
+    /// [String: Any] inputSchema that is not directly Decodable).
     static func load(from path: String) -> CLIConfig? {
         guard FileManager.default.fileExists(atPath: path) else {
             return nil
@@ -52,7 +173,20 @@ enum ConfigLoader {
         }
 
         do {
-            return try JSONDecoder().decode(CLIConfig.self, from: data)
+            // Pass 1: Decode standard Decodable fields
+            var config = try JSONDecoder().decode(CLIConfig.self, from: data)
+
+            // Pass 2: Extract customTools via JSONSerialization for [String: Any] support
+            if let topLevel = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let toolsArray = topLevel["customTools"] as? [[String: Any]] {
+                config.customTools = toolsArray.compactMap { CustomToolConfig.fromDictionary($0) }
+                // If none parsed successfully from the array, set to nil (not empty)
+                if config.customTools?.isEmpty == true {
+                    config.customTools = nil
+                }
+            }
+
+            return config
         } catch {
             let msg = "Warning: Failed to parse \(path): \(error.localizedDescription)\n"
             FileHandle.standardError.write(msg.data(using: .utf8)!)
@@ -120,6 +254,11 @@ enum ConfigLoader {
         }
         if !args.explicitlySet.contains("output"), let output = config.output {
             args.output = output
+        }
+
+        // Story 7.7: customTools pass-through from config file
+        if args.customTools == nil, let customTools = config.customTools {
+            args.customTools = customTools
         }
 
         // Path validation: warn if config-referenced paths don't exist (AC#6)

@@ -154,7 +154,7 @@ enum AgentFactory {
     static func computeToolPool(from args: ParsedArgs, skillRegistry: SkillRegistry? = nil) -> [ToolProtocol] {
         let baseTools = mapToolTier(args.tools)
 
-        // Build custom tools array: include Agent tool and Skill tool as needed
+        // Build custom tools array: include Agent tool, Skill tool, and user-defined custom tools
         var customTools: [ToolProtocol]? = nil
 
         // Include Agent tool (createAgentTool) when tool tier includes advanced tools
@@ -168,6 +168,12 @@ enum AgentFactory {
             customTools = (customTools ?? []) + [createSkillTool(registry: registry)]
         }
 
+        // Include user-defined custom tools from config file (Story 7.7)
+        let userCustomTools = createCustomTools(from: args.customTools)
+        if !userCustomTools.isEmpty {
+            customTools = (customTools ?? []) + userCustomTools
+        }
+
         return assembleToolPool(
             baseTools: baseTools,
             customTools: customTools,
@@ -175,6 +181,135 @@ enum AgentFactory {
             allowed: args.toolAllow,
             disallowed: args.toolDeny
         )
+    }
+
+    /// Create SDK ToolProtocol instances from CustomToolConfig array.
+    ///
+    /// Each valid config entry becomes a tool that executes an external script via `Process`.
+    /// Invalid configs (empty schema, missing execute path) are skipped with warnings.
+    /// - Parameter configs: Array of CustomToolConfig from the config file.
+    /// - Returns: Array of valid ToolProtocol instances.
+    static func createCustomTools(from configs: [CustomToolConfig]?) -> [ToolProtocol] {
+        guard let configs, !configs.isEmpty else { return [] }
+
+        var tools: [ToolProtocol] = []
+        for config in configs {
+            // AC#4: Skip tools with empty inputSchema
+            if config.inputSchema.isEmpty {
+                FileHandle.standardError.write("Warning: Custom tool '\(config.name)' has empty inputSchema, skipping.\n".data(using: .utf8)!)
+                continue
+            }
+
+            // AC#5: Skip tools with nonexistent or non-executable execute path
+            let fm = FileManager.default
+            var isDir: ObjCBool = false
+            if fm.fileExists(atPath: config.execute, isDirectory: &isDir), isDir.boolValue {
+                FileHandle.standardError.write("Warning: Custom tool '\(config.name)' execute path is a directory, skipping: \(config.execute)\n".data(using: .utf8)!)
+                continue
+            }
+            if !fm.isExecutableFile(atPath: config.execute) {
+                FileHandle.standardError.write("Warning: Custom tool '\(config.name)' execute path not found or not executable: \(config.execute)\n".data(using: .utf8)!)
+                continue
+            }
+
+            let executePath = config.execute
+            let toolIsReadOnly = config.isReadOnly ?? false
+
+            let tool = defineTool(
+                name: config.name,
+                description: config.description,
+                inputSchema: config.inputSchema,
+                isReadOnly: toolIsReadOnly
+            ) { (input: [String: Any], context: ToolContext) async -> ToolExecuteResult in
+                do {
+                    let result = try await AgentFactory.executeExternalTool(
+                        path: executePath,
+                        input: input
+                    )
+                    return ToolExecuteResult(content: result, isError: false)
+                } catch {
+                    return ToolExecuteResult(content: "Error: \(error.localizedDescription)", isError: true)
+                }
+            }
+            tools.append(tool)
+        }
+        return tools
+    }
+
+    /// Execute an external tool script by spawning a Process.
+    ///
+    /// The script receives JSON input via stdin and returns output via stdout.
+    /// A non-zero exit code is treated as an error.
+    /// - Parameters:
+    ///   - path: Absolute path to the executable script.
+    ///   - input: Input dictionary serialized to JSON and sent via stdin.
+    /// - Returns: The stdout output as a String.
+    /// - Throws: An error if the process fails to launch or exits with non-zero code.
+    private static func executeExternalTool(path: String, input: [String: Any]) async throws -> String {
+        // Serialize input on calling thread to avoid Sendable issues in the closure
+        let inputData = try JSONSerialization.data(withJSONObject: input, options: [])
+
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global().async {
+                do {
+                    let process = Process()
+                    process.executableURL = URL(fileURLWithPath: path)
+
+                    let stdinPipe = Pipe()
+                    let stdoutPipe = Pipe()
+                    let stderrPipe = Pipe()
+                    process.standardInput = stdinPipe
+                    process.standardOutput = stdoutPipe
+                    process.standardError = stderrPipe
+
+                    try process.run()
+
+                    // Write pre-serialized JSON input to stdin
+                    stdinPipe.fileHandleForWriting.write(inputData)
+                    try? stdinPipe.fileHandleForWriting.close()
+
+                    // 30-second timeout protection to prevent thread pool starvation
+                    let timeoutSeconds: TimeInterval = 30
+                    let timer = DispatchSource.makeTimerSource()
+                    timer.schedule(deadline: .now() + timeoutSeconds)
+                    timer.setEventHandler {
+                        if process.isRunning {
+                            process.terminate()
+                        }
+                    }
+                    timer.resume()
+
+                    process.waitUntilExit()
+                    timer.cancel()
+
+                    let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+                    let output = String(data: stdoutData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+                    if process.terminationStatus != 0 {
+                        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                        let stderrOutput = String(data: stderrData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                        let timedOut = process.terminationStatus == 15 // SIGTERM from our timer
+                        let errorMsg: String
+                        if timedOut {
+                            errorMsg = "Custom tool timed out after \(Int(timeoutSeconds))s"
+                        } else if stderrOutput.isEmpty {
+                            errorMsg = "Process exited with code \(process.terminationStatus)"
+                        } else {
+                            errorMsg = stderrOutput
+                        }
+                        continuation.resume(throwing: NSError(
+                            domain: "CustomTool",
+                            code: Int(process.terminationStatus),
+                            userInfo: [NSLocalizedDescriptionKey: errorMsg]
+                        ))
+                    } else {
+                        continuation.resume(returning: output)
+                    }
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 
     /// Map a tool tier string to an array of SDK tools.
