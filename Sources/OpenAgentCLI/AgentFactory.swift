@@ -112,10 +112,13 @@ enum AgentFactory {
             isInteractive: isInteractive
         )
 
-        // 9. Assemble AgentOptions
+        // 9. Resolve model (provider-aware default when not explicitly set)
+        let model = resolveModel(from: args, provider: provider)
+
+        // 10. Assemble AgentOptions
         let options = AgentOptions(
             apiKey: apiKey,
-            model: args.model,
+            model: model,
             baseURL: args.baseURL,
             provider: provider,
             systemPrompt: args.systemPrompt,
@@ -137,7 +140,7 @@ enum AgentFactory {
             persistSession: true
         )
 
-        // 10. Call SDK factory function
+        // 11. Call SDK factory function
         let agent = OpenAgentSDK.createAgent(options: options)
         return (agent, sessionStore)
     }
@@ -204,6 +207,37 @@ enum AgentFactory {
         case "warn": return .warn
         case "error": return .error
         default: return .none
+        }
+    }
+
+    /// Resolve the model string, applying provider-aware defaults when the user
+    /// did not explicitly set `--model`.
+    ///
+    /// - When `--model` was explicitly passed by the user, always use that value.
+    /// - When `--model` was not set and provider is `.anthropic`, use the CLI
+    ///   default `"glm-5.1"` (stored as `ParsedArgs.model` default).
+    /// - When `--model` was not set and provider is not `.anthropic`, use the
+    ///   SDK default `"claude-sonnet-4-6"` so that the SDK can apply its own
+    ///   provider-specific logic. Users of non-Anthropic providers should
+    ///   explicitly pass `--model` for best results.
+    ///
+    /// - Parameters:
+    ///   - args: The fully resolved CLI arguments.
+    ///   - provider: The resolved LLM provider.
+    /// - Returns: The model string to pass to `AgentOptions`.
+    static func resolveModel(from args: ParsedArgs, provider: LLMProvider) -> String {
+        if args.explicitlySet.contains("model") {
+            return args.model
+        }
+        // User did not pass --model: apply provider-aware defaults.
+        // For non-Anthropic providers, use the SDK default model so the SDK
+        // can handle provider-specific model selection. Users should pass
+        // --model explicitly when using non-default providers.
+        switch provider {
+        case .anthropic:
+            return args.model  // "glm-5.1" CLI default
+        case .openai:
+            return "claude-sonnet-4-6"  // SDK default (user should pass --model)
         }
     }
 

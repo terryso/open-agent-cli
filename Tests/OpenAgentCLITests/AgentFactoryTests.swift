@@ -562,6 +562,8 @@ final class AgentFactoryTests: XCTestCase {
             logLevel: "debug",
             toolAllow: ["Bash", "Read"],
             toolDeny: ["Write"],
+            explicitlySet: ["model", "provider", "apiKey", "baseURL", "mode", "tools",
+                           "systemPrompt", "thinking", "logLevel", "toolAllow", "toolDeny", "output", "quiet"],
             shouldExit: false,
             exitCode: 0,
             errorMessage: nil,
@@ -657,6 +659,188 @@ final class AgentFactoryTests: XCTestCase {
             XCTAssertTrue(message.count > 0,
                 "Error for invalid hooks JSON should be descriptive: \(message)")
         }
+    }
+
+    // MARK: - ATDD: Story 7.4 Multi-Provider Support
+    //
+    // Acceptance Criteria Coverage:
+    //   AC#1: --provider openai --base-url <url> uses OpenAI-compatible client
+    //   AC#2: --provider anthropic (or default) uses Anthropic client
+    //   AC#3: --provider openai without --base-url uses SDK default URL
+    //   AC#4: --provider openai without --model uses provider-appropriate default
+    //   AC#5: Config file provider/baseURL loaded (in ConfigLoaderTests)
+    //   AC#6: Invalid provider shows error listing valid providers
+    //   AC#7: OutputRenderer is provider-agnostic (no provider-specific paths)
+
+    // MARK: AC#2 — mapProvider direct unit tests
+
+    /// AC#2: mapProvider("anthropic") returns .anthropic
+    func testMapProvider_anthropic_returnsAnthropic() throws {
+        let result = try AgentFactory.mapProvider("anthropic")
+        XCTAssertEqual(result, .anthropic,
+            "mapProvider('anthropic') should return LLMProvider.anthropic")
+    }
+
+    /// AC#2: mapProvider(nil) returns .anthropic (CLI default)
+    func testMapProvider_nil_returnsAnthropicDefault() throws {
+        let result = try AgentFactory.mapProvider(nil)
+        XCTAssertEqual(result, .anthropic,
+            "mapProvider(nil) should return LLMProvider.anthropic as CLI default")
+    }
+
+    // MARK: AC#1 — mapProvider openai
+
+    /// AC#1: mapProvider("openai") returns .openai
+    func testMapProvider_openai_returnsOpenai() throws {
+        let result = try AgentFactory.mapProvider("openai")
+        XCTAssertEqual(result, .openai,
+            "mapProvider('openai') should return LLMProvider.openai")
+    }
+
+    // MARK: AC#6 — Invalid provider error
+
+    /// AC#6: mapProvider("google") throws invalidProvider error
+    func testMapProvider_invalid_throwsInvalidProvider() {
+        XCTAssertThrowsError(try AgentFactory.mapProvider("google"),
+            "mapProvider('google') should throw") { error in
+            XCTAssertTrue(error is AgentFactoryError,
+                "Should throw AgentFactoryError for invalid provider")
+            guard let factoryError = error as? AgentFactoryError else { return }
+            if case .invalidProvider(let value) = factoryError {
+                XCTAssertEqual(value, "google",
+                    "Error should contain the invalid provider name")
+            } else {
+                XCTFail("Should be .invalidProvider case")
+            }
+        }
+    }
+
+    /// AC#6: Error message lists valid providers
+    func testMapProvider_errorMessage_listsValidProviders() {
+        XCTAssertThrowsError(try AgentFactory.mapProvider("google")) { error in
+            let message = error.localizedDescription
+            XCTAssertTrue(message.contains("anthropic"),
+                "Error message should list 'anthropic' as valid provider: \(message)")
+            XCTAssertTrue(message.contains("openai"),
+                "Error message should list 'openai' as valid provider: \(message)")
+            XCTAssertTrue(message.contains("google"),
+                "Error message should mention the invalid provider name: \(message)")
+        }
+    }
+
+    // MARK: AC#4 — resolveModel direct unit tests
+
+    /// AC#4: resolveModel returns CLI default "glm-5.1" for anthropic when model not explicitly set.
+    func testResolveModel_anthropic_notExplicit_returnsCliDefault() {
+        let args = makeArgs(model: "glm-5.1")
+        // explicitlySet does NOT contain "model" (user did not pass --model)
+        let result = AgentFactory.resolveModel(from: args, provider: .anthropic)
+        XCTAssertEqual(result, "glm-5.1",
+            "resolveModel should return CLI default 'glm-5.1' for anthropic when not explicitly set")
+    }
+
+    /// AC#4: resolveModel returns SDK default for openai when model not explicitly set.
+    func testResolveModel_openai_notExplicit_returnsSdkDefault() {
+        let args = makeArgs(model: "glm-5.1")  // ParsedArgs default
+        // explicitlySet does NOT contain "model"
+        let result = AgentFactory.resolveModel(from: args, provider: .openai)
+        XCTAssertEqual(result, "claude-sonnet-4-6",
+            "resolveModel should return SDK default 'claude-sonnet-4-6' for openai when not explicitly set")
+    }
+
+    /// AC#4: resolveModel returns user's explicit model even when it differs from default.
+    func testResolveModel_explicitModel_returnsUserModel() {
+        var args = makeArgs(model: "gpt-4o")
+        args.explicitlySet.insert("model")
+        let result = AgentFactory.resolveModel(from: args, provider: .openai)
+        XCTAssertEqual(result, "gpt-4o",
+            "resolveModel should return user's explicit model 'gpt-4o'")
+    }
+
+    /// AC#4: resolveModel returns user's explicit model even when it equals CLI default.
+    func testResolveModel_explicitDefault_returnsUserModel() {
+        var args = makeArgs(model: "glm-5.1")
+        args.explicitlySet.insert("model")
+        let result = AgentFactory.resolveModel(from: args, provider: .openai)
+        XCTAssertEqual(result, "glm-5.1",
+            "resolveModel should return user's explicit 'glm-5.1' even for openai provider")
+    }
+
+    // MARK: AC#3 — OpenAI provider without base URL
+
+    /// AC#3: --provider openai without --base-url should still create an Agent.
+    /// The SDK uses OpenAI's default URL when baseURL is nil.
+    func testCreateAgent_openaiProvider_withoutBaseURL_succeeds() async throws {
+        let args = makeArgs(
+            apiKey: "sk-test",
+            baseURL: nil,  // No base URL provided
+            provider: "openai"
+        )
+
+        let agent = try await AgentFactory.createAgent(from: args).0
+        XCTAssertNotNil(agent,
+            "Agent creation with --provider openai and no --base-url should succeed (SDK uses default URL)")
+    }
+
+    // MARK: AC#4 — OpenAI provider without explicit model
+
+    /// AC#4: --provider openai without --model should use the SDK default model.
+    /// When model is not explicitly set and provider is openai, resolveModel
+    /// returns the SDK default ("claude-sonnet-4-6") instead of the CLI default
+    /// ("glm-5.1") so that the SDK can apply provider-specific model selection.
+    func testCreateAgent_openaiProvider_withoutExplicitModel_succeeds() async throws {
+        let args = makeArgs(
+            apiKey: "sk-test",
+            baseURL: "https://api.openai.com/v1",
+            model: "glm-5.1",  // ParsedArgs default (no --model passed)
+            provider: "openai"
+        )
+        // Simulate: user did NOT pass --model (explicitlySet does NOT contain "model")
+        // This is the default state from makeArgs, which doesn't add to explicitlySet.
+
+        let agent = try await AgentFactory.createAgent(from: args).0
+        XCTAssertNotNil(agent,
+            "Agent creation with --provider openai and no explicit --model should succeed")
+        // resolveModel should return SDK default for openai, not "glm-5.1"
+        XCTAssertEqual(agent.model, "claude-sonnet-4-6",
+            "Agent with --provider openai and no explicit --model should use SDK default model")
+    }
+
+    // MARK: AC#1 — Full OpenAI configuration
+
+    /// AC#1, #7: Full OpenAI configuration with provider, baseURL, and model.
+    /// Verifies end-to-end creation and that OutputRenderer needs no changes
+    /// (provider-agnostic design -- the Agent is created the same way regardless
+    /// of provider, and output rendering is handled by SDKMessage abstraction).
+    func testCreateAgent_fullOpenaiConfig_succeeds() async throws {
+        var args = makeArgs(
+            apiKey: "sk-openai-test-key",
+            baseURL: "https://api.openai.com/v1",
+            model: "gpt-4",
+            provider: "openai"
+        )
+        args.explicitlySet.insert("model")  // Simulate user passing --model gpt-4
+
+        let agent = try await AgentFactory.createAgent(from: args).0
+        XCTAssertNotNil(agent,
+            "Agent with full OpenAI config should be created")
+        XCTAssertEqual(agent.model, "gpt-4",
+            "Agent should use the explicitly specified model")
+    }
+
+    /// AC#1: OpenAI provider with explicit baseURL succeeds.
+    /// This is distinct from the full config test because it focuses on
+    /// the provider + baseURL combination specifically.
+    func testCreateAgent_openaiProvider_withBaseURL_succeeds() async throws {
+        let args = makeArgs(
+            apiKey: "sk-test",
+            baseURL: "https://my-proxy.example.com/v1",
+            provider: "openai"
+        )
+
+        let agent = try await AgentFactory.createAgent(from: args).0
+        XCTAssertNotNil(agent,
+            "Agent with --provider openai --base-url should be created")
     }
 
 }

@@ -407,4 +407,116 @@ final class ConfigLoaderTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: testDir),
             "Directory should still exist after calling ensureConfigDirectory on existing dir")
     }
+
+    // MARK: - ATDD: Story 7.4 Multi-Provider Support
+    //
+    // Acceptance Criteria Coverage:
+    //   AC#5: Config file provider and baseURL loaded when CLI flags not passed
+    //
+    // These tests verify that the configuration priority layering works correctly
+    // for provider and baseURL: CLI args > env vars > config file > SDK defaults.
+
+    // MARK: AC#5 — Config file provider applied when CLI flag absent
+
+    /// AC#5: When config file contains "provider": "openai" and no CLI --provider is passed,
+    /// the config value should be applied to ParsedArgs.
+    func testConfigApply_provider_filledFromConfig() {
+        var args = ArgumentParser.parse(["openagent"])
+        let config = CLIConfig(
+            apiKey: nil,
+            baseURL: nil,
+            model: nil,
+            provider: "openai",
+            mode: nil,
+            tools: nil,
+            maxTurns: nil,
+            maxBudgetUsd: nil,
+            systemPrompt: nil,
+            thinking: nil,
+            logLevel: nil
+        )
+
+        ConfigLoader.apply(config, to: &args)
+
+        XCTAssertEqual(args.provider, "openai",
+            "Config file provider 'openai' should be applied when --provider not passed")
+    }
+
+    /// AC#5: When config file contains "baseURL": "https://my-proxy.example.com/v1"
+    /// and no CLI --base-url is passed, the config value should be applied.
+    func testConfigApply_baseURL_filledFromConfig() {
+        var args = ArgumentParser.parse(["openagent"])
+        let config = CLIConfig(
+            apiKey: nil,
+            baseURL: "https://my-proxy.example.com/v1",
+            model: nil,
+            provider: nil,
+            mode: nil,
+            tools: nil,
+            maxTurns: nil,
+            maxBudgetUsd: nil,
+            systemPrompt: nil,
+            thinking: nil,
+            logLevel: nil
+        )
+
+        ConfigLoader.apply(config, to: &args)
+
+        XCTAssertEqual(args.baseURL, "https://my-proxy.example.com/v1",
+            "Config file baseURL should be applied when --base-url not passed")
+    }
+
+    /// AC#5: CLI --provider and --base-url should NOT be overridden by config file.
+    /// This verifies the priority layering: CLI args > config file.
+    func testConfigApply_providerAndBaseURL_CLIOverrides() {
+        var args = ArgumentParser.parse([
+            "openagent",
+            "--provider", "openai",
+            "--base-url", "https://cli-url.example.com/v1"
+        ])
+        let config = CLIConfig(
+            apiKey: nil,
+            baseURL: "https://config-url.example.com/v1",
+            model: nil,
+            provider: "anthropic",
+            mode: nil,
+            tools: nil,
+            maxTurns: nil,
+            maxBudgetUsd: nil,
+            systemPrompt: nil,
+            thinking: nil,
+            logLevel: nil
+        )
+
+        ConfigLoader.apply(config, to: &args)
+
+        XCTAssertEqual(args.provider, "openai",
+            "CLI --provider openai should NOT be overridden by config provider 'anthropic'")
+        XCTAssertEqual(args.baseURL, "https://cli-url.example.com/v1",
+            "CLI --base-url should NOT be overridden by config baseURL")
+    }
+
+    /// AC#5: Full config file loading path with both provider and baseURL.
+    /// Verifies that the JSON -> CLIConfig -> ParsedArgs pipeline works for provider fields.
+    func testConfigApply_openaiProvider_fromConfigFile() throws {
+        let configPath = "/tmp/test_config_provider_\(UUID().uuidString).json"
+        let json = """
+        {
+            "provider": "openai",
+            "baseURL": "https://api.openai.com/v1"
+        }
+        """
+        try json.write(toFile: configPath, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: configPath) }
+
+        let config = ConfigLoader.load(from: configPath)
+        var args = ArgumentParser.parse(["openagent"])
+
+        ConfigLoader.apply(config, to: &args)
+
+        XCTAssertEqual(args.provider, "openai",
+            "Provider loaded from config file JSON should be applied")
+        XCTAssertEqual(args.baseURL, "https://api.openai.com/v1",
+            "BaseURL loaded from config file JSON should be applied")
+    }
 }
