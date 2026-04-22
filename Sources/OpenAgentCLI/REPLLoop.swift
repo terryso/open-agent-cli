@@ -365,7 +365,7 @@ struct REPLLoop {
             return
         }
 
-        let forkArgs = ParsedArgs(
+        var forkArgs = ParsedArgs(
             helpRequested: args.helpRequested,
             versionRequested: args.versionRequested,
             prompt: args.prompt,
@@ -396,6 +396,8 @@ struct REPLLoop {
             errorMessage: args.errorMessage,
             helpMessage: args.helpMessage
         )
+        forkArgs.explicitlySet = args.explicitlySet
+        forkArgs.customTools = args.customTools
 
         do {
             let (newAgent, _) = try await AgentFactory.createAgent(from: forkArgs)
@@ -564,7 +566,7 @@ struct REPLLoop {
         }
 
         // Override the sessionId to the target session
-        let resumeArgs = ParsedArgs(
+        var resumeArgs = ParsedArgs(
             helpRequested: args.helpRequested,
             versionRequested: args.versionRequested,
             prompt: args.prompt,
@@ -595,6 +597,8 @@ struct REPLLoop {
             errorMessage: args.errorMessage,
             helpMessage: args.helpMessage
         )
+        resumeArgs.explicitlySet = args.explicitlySet
+        resumeArgs.customTools = args.customTools
 
         do {
             let (newAgent, _) = try await AgentFactory.createAgent(from: resumeArgs)
