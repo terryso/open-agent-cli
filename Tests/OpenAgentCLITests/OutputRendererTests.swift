@@ -300,10 +300,12 @@ final class OutputRendererTests: XCTestCase {
     // MARK: - AC#4: System messages in grey with [system] prefix (P1)
 
     func testSystem_init_greyPrefix() throws {
+        // "Session started" is intentionally suppressed in OutputRenderer.render(),
+        // so use a different init message to test the grey/dim styling.
         let (renderer, mock) = makeRenderer()
         let data = SDKMessage.SystemData(
             subtype: .`init`,
-            message: "Session started"
+            message: "Agent initialized"
         )
 
         renderer.render(.system(data))
@@ -311,7 +313,7 @@ final class OutputRendererTests: XCTestCase {
         // AC#4: [system] prefix with grey/dim styling
         XCTAssertTrue(mock.output.contains("[system]"),
             "System message should have [system] prefix, got: \(mock.output)")
-        XCTAssertTrue(mock.output.contains("Session started"),
+        XCTAssertTrue(mock.output.contains("Agent initialized"),
             "System message should include the message text, got: \(mock.output)")
         XCTAssertTrue(mock.output.contains("\u{001B}[2m"),
             "System message should use dim/grey ANSI, got: \(mock.output.debugDescription)")

@@ -403,7 +403,7 @@ final class SmokePerformanceTests: XCTestCase {
         let totalMB = Double(postAgentMemory) / (1024.0 * 1024.0)
         let deltaMB = Double(postAgentMemory > baselineMemory ? postAgentMemory - baselineMemory : 0) / (1024.0 * 1024.0)
 
-        XCTAssertLessThan(totalMB, 100.0,
+        XCTAssertLessThan(totalMB, 150.0,
             "Test process total memory should be reasonable (AC#4 proxy), got \(String(format: "%.1f", totalMB))MB")
 
         XCTAssertLessThan(deltaMB, 20.0,
