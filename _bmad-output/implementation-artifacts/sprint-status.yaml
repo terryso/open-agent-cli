@@ -1,5 +1,5 @@
 # generated: 2026-04-19
-# last_updated: 2026-04-24 (Story 9-3 done)
+# last_updated: 2026-04-24 (Story 9-4 done)
 # project: open-agent-cli
 # project_key: NOKEY
 # tracking_system: file-system
@@ -111,6 +111,6 @@ development_status:
   9-1-welcome-screen: done
   9-2-colored-prompt: done
   9-3-command-history: done
-  9-4-tab-completion: backlog
+  9-4-tab-completion: done
   9-5-multiline-input: backlog
   epic-9-retrospective: optional

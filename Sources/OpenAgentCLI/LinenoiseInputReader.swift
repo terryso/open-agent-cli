@@ -70,6 +70,17 @@ final class LinenoiseInputReader: InputReading, @unchecked Sendable {
         }
     }
 
+    // MARK: - Tab Completion
+
+    /// Register a Tab-completion callback.
+    ///
+    /// Wraps linenoise-swift's `setCompletionCallback`, keeping the linenoise
+    /// instance private. The callback receives the current input buffer text
+    /// and returns a list of matching completion candidates.
+    func setCompletionCallback(_ callback: @escaping (String) -> [String]) {
+        linenoise.setCompletionCallback(callback)
+    }
+
     // MARK: - Public Helpers (used by tests)
 
     /// Add a history entry directly (bypasses readLine, used for testing).
