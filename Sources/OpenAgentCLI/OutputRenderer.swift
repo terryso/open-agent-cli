@@ -211,7 +211,9 @@ struct OutputRenderer: OutputRendering {
         case .result(let data):
             renderResult(data)
         case .system(let data):
-            renderSystem(data)
+            if data.message != "Session started" {
+                renderSystem(data)
+            }
         case .toolUse(let data):
             renderToolUse(data)
         case .toolResult(let data):
