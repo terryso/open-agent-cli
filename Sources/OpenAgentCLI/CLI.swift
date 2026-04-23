@@ -86,8 +86,19 @@ enum CLI {
 
         // Handle --skill auto-invocation
         if let skillName = args.skillName {
+            let noSkillDirsMessage = "No skill directories configured. Use --skill-dir <path> to load skills.\n"
+
+            // When no --skill-dir was provided, the user hasn't configured any skill directories.
+            // Even if the SDK discovers default skill directories, showing "Skill not found: X"
+            // with a long list of unrelated skills is confusing. Instead, tell the user to
+            // configure skill directories explicitly.
+            if args.skillDir == nil {
+                ANSI.writeToStderr(noSkillDirsMessage)
+                Foundation.exit(1)
+            }
+
             guard let registry = skillRegistry else {
-                ANSI.writeToStderr("Skill not found: \(skillName)\n")
+                ANSI.writeToStderr(noSkillDirsMessage)
                 Foundation.exit(1)
             }
 

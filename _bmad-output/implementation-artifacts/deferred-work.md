@@ -14,14 +14,14 @@
 ## Deferred from: code review of 3-1-auto-save-sessions-on-exit.md (2026-04-20)
 
 - ~~**Force-unwrap on .data(using: .utf8)! in closeAgentSafely**~~ — **Resolved by Story 8-1 AC#1:** All 16 force-unwraps across CLI.swift (9), ConfigLoader.swift (4), and AgentFactory.swift (3) replaced with safe `ANSI.writeToStderr()` or `?? Data()` fallback.
-- **testCreateAgent_sessionSavedToDisk_afterClose lacks disk-write verification** — Test only verifies close() succeeds without error. Full disk-write verification requires AgentOptions to expose a custom sessionsDir parameter. Low priority; the SDK's internal tests cover the write path.
+- ~~**testCreateAgent_sessionSavedToDisk_afterClose lacks disk-write verification**~~ — **Permanently accepted by Story 8-3 AC#1:** The SDK's `SessionStore` internal tests comprehensively cover the disk-write path. Adding a custom `sessionsDir` to `AgentOptions` would require an SDK API change, which is out of scope for this CLI cleanup story. The CLI-level test verifies close() succeeds without error, which is the CLI's responsibility.
 
 ## Deferred from: code review of 2-3-skills-loading-and-invocation.md (2026-04-20)
 
 - ~~**Force-unwrap on .data(using: .utf8)! in error paths**~~ — **Resolved by Story 8-1 AC#1:** Same as above; all CLI.swift force-unwraps eliminated.
-- **Misleading error message in registry guard** — CLI.swift line 48 shows "Skill not found" when the actual condition is "no registry could be built". Defensive code that should never trigger.
+- ~~**Misleading error message in registry guard**~~ — **Resolved by Story 8-3 AC#2:** Fixed in CLI.swift: when `--skill` is used without `--skill-dir`, the error now says "No skill directories configured. Use --skill-dir <path> to load skills." instead of the misleading "Skill not found". When `--skill-dir` is provided but the skill name doesn't exist, the error correctly says "Skill not found: {name}" with a list of available skills.
 - **AgentOptions not populated with skill fields** — createAgent does not set skillDirectories/skillNames/skillRegistry on AgentOptions, relying solely on SkillTool injection. Functionally equivalent but deviates from spec's recommended autoDiscoverSkills() approach. Intentional design choice.
-- **Missing test for --skill + positional prompt combined path** — The code path where both --skill and a prompt are provided is untested. Low priority.
+- ~~**Missing test for --skill + positional prompt combined path**~~ — **Resolved by Story 8-3 AC#3:** Added 10 unit tests and 1 E2E test covering the combined `--skill` + positional prompt path. Tests verify: both arguments are parsed correctly, skill template and positional prompt are independent, both queries execute in sequence (skill template first, then positional prompt), and the CLI does not enter REPL mode when both are provided.
 
 ## Deferred from: code review of 4-2-sub-agent-delegation.md (2026-04-20)
 

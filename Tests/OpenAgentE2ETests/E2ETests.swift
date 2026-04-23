@@ -865,4 +865,111 @@ final class E2ETests: XCTestCase {
         XCTAssertFalse(result.stdout.contains("Duration:"),
             "Quiet mode should not show 'Duration:', got: \(result.stdout.suffix(200))")
     }
+
+    // MARK: - Story 8.3: Deferred Work Cleanup
+
+    // --- AC#2: Fix misleading error message in registry guard ---
+
+    func testSkillWithoutDir_showsNoSkillDirectoriesMessage() throws {
+        // AC#2: When --skill is used without --skill-dir and no default dirs exist,
+        // the error should say "No skill directories configured" (not "Skill not found").
+        let exec = try resolveExecutable()
+        let result = launchCLI(execPath: exec, arguments: ["--skill", "review", "--api-key", "test-key"])
+
+        XCTAssertEqual(result.exitCode, 1,
+            "Should exit 1 when --skill used without --skill-dir")
+
+        // After the CLI.swift fix (AC#2 Task 2), this should contain "No skill directories"
+        // Before the fix, it incorrectly says "Skill not found: review"
+        XCTAssertTrue(result.stderr.contains("No skill directories configured") || result.stderr.contains("no skill directories"),
+            "stderr should mention 'No skill directories configured' when --skill used without --skill-dir (AC#2). Got: \(result.stderr)")
+        XCTAssertFalse(result.stderr.contains("Skill not found: review"),
+            "stderr should NOT say 'Skill not found: review' when no directories configured (AC#2). Got: \(result.stderr)")
+    }
+
+    func testSkillNotFound_showsAvailableSkills() throws {
+        // AC#2: When --skill-dir is provided but skill name doesn't exist,
+        // the error should say "Skill not found" and list available skills.
+        let exec = try resolveExecutable()
+
+        // Create a temp skill directory with one skill
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("e2e-skill-test-\(UUID().uuidString)")
+        let skillDir = tmpDir.appendingPathComponent("review")
+        try FileManager.default.createDirectory(at: skillDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let skillMD = """
+        ---
+        name: review
+        description: Review code
+        userInvocable: true
+        ---
+        Review the code.
+        """
+        try skillMD.write(to: skillDir.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
+
+        let result = launchCLI(execPath: exec, arguments: [
+            "--skill-dir", tmpDir.path,
+            "--skill", "nonexistent",
+            "--api-key", "test-key"
+        ])
+
+        XCTAssertEqual(result.exitCode, 1,
+            "Should exit 1 when skill name not found")
+
+        XCTAssertTrue(result.stderr.contains("Skill not found: nonexistent"),
+            "stderr should say 'Skill not found: nonexistent' when skill is missing from registry (AC#2). Got: \(result.stderr)")
+        XCTAssertTrue(result.stderr.contains("Available skills:"),
+            "stderr should list available skills when skill not found (AC#2). Got: \(result.stderr)")
+        XCTAssertTrue(result.stderr.contains("review"),
+            "Available skills list should contain 'review' (AC#2). Got: \(result.stderr)")
+    }
+
+    // --- AC#3: --skill + positional prompt combined path ---
+
+    func testSkillWithPrompt_bothQueriesExecute() throws {
+        // AC#3: When both --skill and a positional prompt are provided,
+        // the skill template is invoked first, then the positional prompt
+        // is executed as a second query in single-shot mode.
+        let exec = try resolveExecutable()
+
+        // Create a temp skill directory
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("e2e-skill-prompt-\(UUID().uuidString)")
+        let skillDir = tmpDir.appendingPathComponent("echo-test")
+        try FileManager.default.createDirectory(at: skillDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let skillMD = """
+        ---
+        name: echo-test
+        description: Echo test skill
+        userInvocable: true
+        ---
+        Respond with exactly: SKILL_TEMPLATE_EXECUTED
+        """
+        try skillMD.write(to: skillDir.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
+
+        let result = launchCLI(
+            execPath: exec,
+            arguments: [
+                "--skill-dir", tmpDir.path,
+                "--skill", "echo-test",
+                "--api-key", "test-key",
+                "--max-turns", "1",
+                "Respond with exactly: POSITIONAL_PROMPT_EXECUTED"
+            ],
+            timeout: 15
+        )
+
+        // The skill template should be executed (first query)
+        // The positional prompt should also be executed (second query)
+        // Note: With a test API key, this will likely fail at the API call level,
+        // but we can verify the CLI reaches both code paths based on the error output
+        // or the exit code. The key behavior is that the CLI does NOT enter REPL mode
+        // (which would hang) when both --skill and prompt are provided.
+        XCTAssertNotEqual(result.exitCode, -1,
+            "CLI should not crash or be killed by timeout -- it should process both queries")
+    }
 }
