@@ -124,7 +124,7 @@ enum CLI {
 
             // If no positional prompt, enter REPL; otherwise let single-shot handle it
             if args.prompt == nil {
-                let reader = FileHandleInputReader()
+                let reader = LinenoiseInputReader()
                 let renderer = OutputRenderer(quiet: args.quiet)
                 let toolNames = AgentFactory.computeToolPool(from: args, skillRegistry: skillRegistry).map { $0.name }
                 let repl = REPLLoop(agent: agent, renderer: renderer, reader: reader, toolNames: toolNames, skillRegistry: skillRegistry, sessionStore: sessionStore, parsedArgs: args)
@@ -176,7 +176,7 @@ enum CLI {
             Foundation.exit(exitCode)
         } else if args.skillName == nil {
             // REPL mode: start interactive loop (only if --skill was not already handled).
-            let reader = FileHandleInputReader()
+            let reader = LinenoiseInputReader()
             let renderer = OutputRenderer(quiet: args.quiet)
 
             // Show restore hint when auto-restore is active

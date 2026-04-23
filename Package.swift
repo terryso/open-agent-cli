@@ -18,12 +18,17 @@ let package = Package(
             url: "https://github.com/terryso/open-agent-sdk-swift",
             branch: "main"
         ),
+        .package(
+            url: "https://github.com/andybest/linenoise-swift",
+            revision: "cbf0a35c6e159e4fe6a03f76c8a17ef08e907b0e"
+        ),
     ],
     targets: [
         .executableTarget(
             name: "OpenAgentCLI",
             dependencies: [
                 .product(name: "OpenAgentSDK", package: "open-agent-sdk-swift"),
+                .product(name: "LineNoise", package: "linenoise-swift"),
             ],
             path: "Sources/OpenAgentCLI"
         ),
