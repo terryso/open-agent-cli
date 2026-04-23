@@ -152,7 +152,7 @@ final class SessionForkTests: XCTestCase {
             errorMessage: nil,
             helpMessage: nil
         )
-        let (agent, _) = try await AgentFactory.createAgent(from: args)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: args)
         try await agent.close()
 
         // Use the default SessionStore (same one AgentFactory saves to)

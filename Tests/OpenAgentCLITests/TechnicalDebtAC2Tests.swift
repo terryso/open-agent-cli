@@ -261,7 +261,7 @@ final class TechnicalDebtAC2Tests: XCTestCase {
             errorMessage: nil,
             helpMessage: nil
         )
-        let (agent, _) = try await AgentFactory.createAgent(from: agentArgs)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: agentArgs)
         try await agent.close()
 
         // Use default SessionStore (same one AgentFactory saves to)
@@ -356,7 +356,7 @@ final class TechnicalDebtAC2Tests: XCTestCase {
             errorMessage: nil,
             helpMessage: nil
         )
-        let (agent, _) = try await AgentFactory.createAgent(from: agentArgs)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: agentArgs)
         try await agent.close()
 
         // Use default SessionStore (same one AgentFactory saves to)
@@ -513,7 +513,7 @@ final class TechnicalDebtAC2Tests: XCTestCase {
             errorMessage: nil,
             helpMessage: nil
         )
-        let (agent, _) = try await AgentFactory.createAgent(from: agentArgs)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: agentArgs)
         try await agent.close()
 
         // Use default SessionStore (same one AgentFactory saves to)

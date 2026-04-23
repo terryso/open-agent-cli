@@ -370,7 +370,7 @@ struct REPLLoop {
         forkArgs.sessionId = forkedId
 
         do {
-            let (newAgent, _) = try await AgentFactory.createAgent(from: forkArgs)
+            let (newAgent, _, _) = try await AgentFactory.createAgent(from: forkArgs)
             // Save current agent session
             do {
                 try await agentHolder.agent.close()
@@ -563,7 +563,7 @@ struct REPLLoop {
         resumeArgs.sessionId = sessionId
 
         do {
-            let (newAgent, _) = try await AgentFactory.createAgent(from: resumeArgs)
+            let (newAgent, _, _) = try await AgentFactory.createAgent(from: resumeArgs)
             do {
                 try await agentHolder.agent.close()
             } catch {

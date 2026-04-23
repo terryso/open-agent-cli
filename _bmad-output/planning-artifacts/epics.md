@@ -204,6 +204,12 @@ FR10.4: Epic 7 — Story 7.7
 **覆盖的 FR：** FR1.4, FR1.5, FR1.6, FR2.3, FR4.4, FR5.3, FR5.4, FR8.4, FR9.2, FR10.3, FR10.4
 **优先级：** P2
 
+### Epic 8: 核心使命收尾与质量验证
+系统性验证 SDK 集成的完整性，清零所有已知技术债务和 deferred work，确保 CLI 作为 SDK 验证载体的使命圆满完成。
+**覆盖的 FR：** NFR4.1, NFR4.2, NFR4.3, NFR4.4
+**覆盖的 NFR：** NFR2.5, NFR3.2, NFR3.4
+**优先级：** P0
+
 ---
 
 ## Epic 1: 首次对话
@@ -959,3 +965,98 @@ FR10.4: Epic 7 — Story 7.7
 
 **SDK API：** `SkillRegistry`, `defineTool()`
 **文件：** `REPLLoop.swift`, `CLI.swift`
+
+---
+
+## Epic 8: 核心使命收尾与质量验证
+
+系统性验证 SDK 集成的完整性，清零所有已知技术债务和 deferred work，确保 CLI 作为 SDK 验证载体的使命圆满完成。
+
+### Story 8.1: Technical Debt Cleanup
+
+**状态：已完成** (2026-04-22)
+
+作为一个开发者和维护者，
+我想要一次性清理所有已知的 deferred work 和技术债务，
+以便代码库在后续开发前处于健康、安全和可维护的状态。
+
+**验收标准：**
+
+**AC#1: 消除所有 force-unwrap `data(using: .utf8)!`** — 已完成
+- 16 处 force-unwrap 全部替换为安全的 `ANSI.writeToStderr()` 或 `?? Data()` fallback
+
+**AC#2: 修复 handleFork/handleResume 的 ParsedArgs 字段遗漏** — 已完成
+- 改用 struct copy (`var forkArgs = args`) 替代手动逐字段构造
+
+**AC#3: 修复 stdin 在终端下无限阻塞** — 已完成
+- 添加 `isatty(STDIN_FILENO)` 检查，终端 stdin 直接报错退出
+
+**AC#4: 修复 --stdin + --skill 组合的未定义行为** — 已完成
+- 添加互斥校验，明确错误提示
+
+**AC#5: 修复单次提问 + default/plan 模式下静默拒绝写工具** — 已完成
+- 非交互模式改为 auto-approve 并显示警告
+
+**AC#6: 为 CostTracker 添加 Sendable 一致性** — 已完成
+- 标记为 `@unchecked Sendable`
+
+**AC#7: 清理孤立的 fork 会话** — 已完成
+- AgentFactory 失败时自动删除已创建的 session
+
+**测试覆盖：** 28 个专用测试 + 13+ 回归测试，628 全量测试通过
+
+**SDK API：** `PermissionMode`, `SessionStore.delete()`, `AgentOptions`
+**文件：** `ANSI.swift`, `CLI.swift`, `ConfigLoader.swift`, `AgentFactory.swift`, `REPLLoop.swift`, `PermissionHandler.swift`, `ArgumentParser.swift`
+
+### Story 8.2: 端到端场景验证补全
+
+作为一个 SDK 验证者，
+我想要通过多轮真实场景验证 CLI 与 SDK 的集成完整性，
+以便确认 SDK 的公共 API 足以支撑一个功能完整的 Agent 应用。
+
+**验收标准：**
+
+**假设** CLI 已编译且配置了有效的 API Key
+**当** 执行多轮编程任务（包含工具调用链）
+**那么** Agent 正确调用 Write/Bash/Edit 工具完成文件创建、编译、修改的完整流程
+**并且** 工具调用过程实时可见（工具名、参数摘要、耗时）
+
+**假设** 存在有效的 MCP 服务器配置
+**当** CLI 使用 `--mcp` 启动并提交需要 MCP 工具的任务
+**那么** MCP 工具被发现、调用并返回结果
+**并且** `/mcp status` 正确显示连接状态
+
+**假设** CLI 以 `--mode default` 启动
+**当** Agent 请求执行需要权限确认的工具
+**那么** 在交互模式下弹出权限提示，非交互模式下自动批准
+**并且** `/mode` 动态切换生效
+
+**假设** CLI 在 REPL 模式下进行了多轮对话
+**当** 用户执行 `/exit` 退出后重新启动 CLI
+**那么** 自动恢复上次会话，对话历史完整保留
+**并且** 新对话能引用之前的上下文
+
+**SDK API：** `agent.stream(_:)`, `agent.interrupt()`, `McpServerConfig`, `PermissionMode`, `SessionStore`
+**文件：** `Tests/OpenAgentE2ETests/E2ETests.swift`
+
+### Story 8.3: Deferred Work 清零
+
+作为一个项目维护者，
+我想要关闭 deferred-work.md 中所有未解决的已知问题，
+以便项目不存在"已知但未记录优先级"的遗留项。
+
+**验收标准：**
+
+**假设** `deferred-work.md` 中存在未关闭项
+**当** 逐一处理每项
+**那么** 每项要么被修复（附测试验证），要么被明确标记为"永久接受"并附理由
+**并且** deferred-work.md 中不再有 open 状态的条目
+
+**具体待处理项：**
+
+1. `testCreateAgent_sessionSavedToDisk_afterClose lacks disk-write verification` — 补充磁盘写入验证或标记为永久接受（SDK 内部已覆盖）
+2. `Misleading error message in registry guard` — 修正 CLI.swift 中 "Skill not found" 的错误信息，区分"注册表不存在"和"技能名不存在"
+3. `Missing test for --skill + positional prompt combined path` — 补充 `--skill review "extra context"` 组合路径的测试
+
+**SDK API：** `SessionStore`, `SkillRegistry`
+**文件：** `CLI.swift`, `Tests/OpenAgentCLITests/`

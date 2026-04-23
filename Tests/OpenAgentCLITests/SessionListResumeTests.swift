@@ -140,7 +140,7 @@ final class SessionListResumeTests: XCTestCase {
             helpMessage: nil
         )
         // Use createAgent which now returns (Agent, SessionStore)
-        let (agent, _) = try await AgentFactory.createAgent(from: args)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: args)
         try await agent.close()
 
         // Now list sessions using our temp-dir store
@@ -209,7 +209,7 @@ final class SessionListResumeTests: XCTestCase {
             logLevel: nil, toolAllow: nil, toolDeny: nil,
             shouldExit: false, exitCode: 0, errorMessage: nil, helpMessage: nil
         )
-        let (agent, _) = try await AgentFactory.createAgent(from: args)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: args)
         try await agent.close()
 
         // Use the default SessionStore (same one AgentFactory saves to)
@@ -386,7 +386,7 @@ final class SessionListResumeTests: XCTestCase {
         )
 
         // After implementation, createAgent returns (Agent, SessionStore)
-        let (agent, sessionStore) = try await AgentFactory.createAgent(from: args)
+        let (agent, sessionStore, _) = try await AgentFactory.createAgent(from: args)
 
         XCTAssertNotNil(agent, "createAgent should return a non-nil Agent")
         XCTAssertNotNil(sessionStore, "createAgent should return a non-nil SessionStore")
@@ -472,7 +472,7 @@ final class SessionListResumeTests: XCTestCase {
             helpMessage: nil
         )
 
-        let (agent, _) = try await AgentFactory.createAgent(from: args)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: args)
 
         XCTAssertEqual(agent.model, "custom-model-v3",
             "Model should still be passed through correctly with tuple return")
@@ -511,7 +511,7 @@ final class SessionListResumeTests: XCTestCase {
             helpMessage: nil
         )
 
-        let (agent, _) = try await AgentFactory.createAgent(from: args)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: args)
 
         XCTAssertEqual(agent.maxTurns, 7,
             "maxTurns should still be passed through correctly with tuple return")

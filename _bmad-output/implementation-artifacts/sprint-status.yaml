@@ -1,5 +1,5 @@
 # generated: 2026-04-19
-# last_updated: 2026-04-20T17:00:00
+# last_updated: 2026-04-23
 # project: open-agent-cli
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,14 +35,14 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-19
-last_updated: 2026-04-22T23:42:00
+last_updated: 2026-04-23
 project: open-agent-cli
 project_key: NOKEY
 tracking_system: file-system
 story_location: "_bmad-output/implementation-artifacts"
 
 development_status:
-  # Epic 1: First Conversation (P0)
+  # Epic 1: 首次对话 (P0 MVP)
   epic-1: done
   1-1-cli-entry-point-and-argument-parser: done
   1-2-agent-factory-with-core-configuration: done
@@ -52,35 +52,35 @@ development_status:
   1-6-smoke-test-performance-and-reliability: done
   epic-1-retrospective: optional
 
-  # Epic 2: Agent with Tools (P0)
-  epic-2: in-progress
+  # Epic 2: 带工具的 Agent (P0 MVP)
+  epic-2: done
   2-1-core-tool-loading-and-display: done
   2-2-tool-call-visibility: done
   2-3-skills-loading-and-invocation: done
   epic-2-retrospective: optional
 
-  # Epic 3: Session Continuity (P0)
-  epic-3: in-progress
+  # Epic 3: 会话连续性 (P0 MVP)
+  epic-3: done
   3-1-auto-save-sessions-on-exit: done
   3-2-list-and-resume-past-sessions: done
   3-3-auto-restore-last-session-on-startup: done
   epic-3-retrospective: optional
 
-  # Epic 4: External Integration — MCP & Sub-Agents (P0)
+  # Epic 4: 外部集成 — MCP 与子代理 (P0 MVP)
   epic-4: done
   4-1-mcp-server-configuration-and-connection: done
   4-2-sub-agent-delegation: done
   epic-4-retrospective: optional
 
-  # Epic 5: Safe Execution & Control (P0)
-  epic-5: in-progress
+  # Epic 5: 安全执行与控制 (P0 MVP)
+  epic-5: done
   5-1-permission-mode-configuration: done
   5-2-interactive-permission-prompts: done
   5-3-graceful-interrupt-handling: done
   epic-5-retrospective: optional
 
-  # Epic 6: Advanced Features (P1)
-  epic-6: in-progress
+  # Epic 6: 高级功能 (P1)
+  epic-6: done
   6-1-hook-system-integration: done
   6-2-specialist-tools-and-tool-filtering: done
   6-3-dynamic-repl-commands: done
@@ -88,8 +88,8 @@ development_status:
   6-5-markdown-terminal-rendering: done
   epic-6-retrospective: optional
 
-  # Epic 7: Power User & Customization (P2)
-  epic-7: in-progress
+  # Epic 7: 高级用户与自定义 (P2)
+  epic-7: done
   7-1-pipe-stdin-input-mode: done
   7-2-json-output-mode: done
   7-3-persistent-configuration-file: done
@@ -99,7 +99,9 @@ development_status:
   7-7-skills-listing-and-custom-tool-registration: done
   epic-7-retrospective: optional
 
-  # Epic 8: Technical Debt & Validation (Post-PRD)
+  # Epic 8: 核心使命收尾与质量验证 (P0)
   epic-8: in-progress
   8-1-technical-debt-cleanup: done
+  8-2-e2e-scenario-validation: done
+  8-3-deferred-work-cleanup: backlog
   epic-8-retrospective: optional

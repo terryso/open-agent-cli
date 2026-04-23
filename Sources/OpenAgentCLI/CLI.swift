@@ -70,7 +70,7 @@ enum CLI {
         let skillRegistry = AgentFactory.createSkillRegistry(from: args)
 
         // Dispatch based on mode
-        let (agent, sessionStore) = await createAgentOrExit(from: args)
+        let (agent, sessionStore, resolvedSessionId) = await createAgentOrExit(from: args)
 
         if !args.quiet && args.output != "json" {
             if args.mcpConfigPath != nil {
@@ -98,21 +98,17 @@ enum CLI {
             }
 
             // Invoke the skill's promptTemplate as a streaming query
-            do {
-                let stream = agent.stream(skill.promptTemplate)
-                if args.output == "json" {
-                    // JSON mode: silently consume stream, then output JSON from result
-                    let jsonRenderer = JsonOutputRenderer()
-                    await jsonRenderer.renderStream(stream)
-                    // Note: For streaming skill invocation, JSON mode silences output.
-                    // The final result JSON would need a collectAndRender approach
-                    // for complete integration (deferred to future enhancement).
-                } else {
-                    let renderer = OutputRenderer(quiet: args.quiet)
-                    await renderer.renderStream(stream)
-                }
-            } catch {
-                ANSI.writeToStderr("Error invoking skill '\(skillName)': \(error.localizedDescription)\n")
+            let stream = agent.stream(skill.promptTemplate)
+            if args.output == "json" {
+                // JSON mode: silently consume stream, then output JSON from result
+                let jsonRenderer = JsonOutputRenderer()
+                await jsonRenderer.renderStream(stream)
+                // Note: For streaming skill invocation, JSON mode silences output.
+                // The final result JSON would need a collectAndRender approach
+                // for complete integration (deferred to future enhancement).
+            } else {
+                let renderer = OutputRenderer(quiet: args.quiet)
+                await renderer.renderStream(stream)
             }
 
             // If no positional prompt, enter REPL; otherwise let single-shot handle it
@@ -136,7 +132,7 @@ enum CLI {
                 // JSON is the sole content of stdout -- no ANSI codes, no extra text.
                 // Errors are also output as JSON to stdout (AC#2).
                 let jsonRenderer = JsonOutputRenderer()
-                jsonRenderer.renderSingleShotJson(result)
+                jsonRenderer.renderSingleShotJson(result, sessionId: resolvedSessionId)
 
                 let exitCode = CLIExitCode.forQueryStatus(result.status)
                 await closeAgentSafely(agent)
@@ -221,7 +217,7 @@ enum CLI {
     }
 
     /// Create an Agent from parsed args, or print error to stderr and exit.
-    private static func createAgentOrExit(from args: ParsedArgs) async -> (Agent, SessionStore) {
+    private static func createAgentOrExit(from args: ParsedArgs) async -> (Agent, SessionStore, String?) {
         do {
             return try await AgentFactory.createAgent(from: args)
         } catch {

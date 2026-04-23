@@ -365,7 +365,7 @@ final class MCPConfigLoaderTests: XCTestCase {
         let args = makeArgs(mcpConfigPath: nil)
 
         // Should succeed without any MCP config
-        let (agent, _) = try await AgentFactory.createAgent(from: args)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: args)
         XCTAssertNotNil(agent,
             "Agent creation should succeed without MCP config")
     }
@@ -390,7 +390,7 @@ final class MCPConfigLoaderTests: XCTestCase {
         let args = makeArgs(mcpConfigPath: configPath)
 
         // Should succeed with MCP config loaded
-        let (agent, _) = try await AgentFactory.createAgent(from: args)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: args)
         XCTAssertNotNil(agent,
             "Agent creation should succeed with valid MCP config")
     }

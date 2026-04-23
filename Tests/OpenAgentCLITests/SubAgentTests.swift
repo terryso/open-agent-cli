@@ -142,7 +142,7 @@ final class SubAgentTests: XCTestCase {
     func testCreateAgent_advancedTools_createsSuccessfully() async throws {
         // AC#1 Integration: Agent creation with --tools advanced (including Agent tool) should succeed
         let args = makeArgs(tools: "advanced")
-        let (agent, _) = try await AgentFactory.createAgent(from: args)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: args)
 
         XCTAssertNotNil(agent,
             "Agent with --tools advanced (including Agent tool) should be created successfully (AC#1)")

@@ -55,10 +55,10 @@ enum AgentFactory {
     /// Create an SDK Agent from parsed CLI arguments.
     ///
     /// - Parameter args: The fully resolved CLI arguments (after ConfigLoader has applied config file values).
-    /// - Returns: A tuple of (configured Agent instance, SessionStore used for session management).
+    /// - Returns: A tuple of (configured Agent instance, SessionStore used for session management, resolved session ID).
     /// - Throws: `AgentFactoryError` if required configuration is missing or invalid.
     /// - Throws: ``HookConfigLoaderError`` if hooks config file cannot be loaded or parsed.
-    static func createAgent(from args: ParsedArgs) async throws -> (Agent, SessionStore) {
+    static func createAgent(from args: ParsedArgs) async throws -> (Agent, SessionStore, String?) {
         // 1. Validate API Key
         guard let apiKey = args.apiKey, !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw AgentFactoryError.missingApiKey
@@ -142,7 +142,7 @@ enum AgentFactory {
 
         // 11. Call SDK factory function
         let agent = OpenAgentSDK.createAgent(options: options)
-        return (agent, sessionStore)
+        return (agent, sessionStore, sessionId)
     }
 
     // MARK: - Conversion Helpers (exposed for testing)

@@ -134,7 +134,7 @@ final class AutoRestoreTests: XCTestCase {
         // After implementation: createAgent should pass sessionId: nil and
         // continueRecentSession: true to AgentOptions, letting the SDK resolve
         // the most recent session automatically.
-        let (agent, _) = try await AgentFactory.createAgent(from: args)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: args)
 
         // The agent is created successfully -- the actual continueRecentSession
         // behavior is verified at runtime when the first prompt/stream call happens.
@@ -154,7 +154,7 @@ final class AutoRestoreTests: XCTestCase {
         XCTAssertNotNil(sessionId, "resolveSessionId returns UUID; createAgent handles nil override")
 
         // Verify agent creation succeeds with auto-restore configuration
-        let (agent, _) = try await AgentFactory.createAgent(from: args)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: args)
         XCTAssertNotNil(agent, "Agent should be created with auto-restore configuration")
     }
 
@@ -179,7 +179,7 @@ final class AutoRestoreTests: XCTestCase {
 
         // After implementation: continueRecentSession should be false when
         // an explicit sessionId is provided.
-        let (agent, _) = try await AgentFactory.createAgent(from: args)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: args)
 
         XCTAssertNotNil(agent,
             "Agent with explicit --session should be created successfully")
@@ -208,7 +208,7 @@ final class AutoRestoreTests: XCTestCase {
         let args = makeArgs(noRestore: true)
 
         // After implementation: continueRecentSession should be false
-        let (agent, _) = try await AgentFactory.createAgent(from: args)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: args)
 
         XCTAssertNotNil(agent,
             "Agent with --no-restore should be created with fresh session")
@@ -401,7 +401,7 @@ final class AutoRestoreTests: XCTestCase {
         // Regression: model should still be correctly passed through with auto-restore.
         let args = makeArgs(model: "custom-model-v3")
 
-        let (agent, _) = try await AgentFactory.createAgent(from: args)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: args)
 
         XCTAssertEqual(agent.model, "custom-model-v3",
             "Model should still be passed through correctly with auto-restore")
@@ -411,7 +411,7 @@ final class AutoRestoreTests: XCTestCase {
         // Regression: maxTurns should still be correctly passed through.
         let args = makeArgs(maxTurns: 7)
 
-        let (agent, _) = try await AgentFactory.createAgent(from: args)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: args)
 
         XCTAssertEqual(agent.maxTurns, 7,
             "maxTurns should still be passed through correctly with auto-restore")
@@ -430,7 +430,7 @@ final class AutoRestoreTests: XCTestCase {
             shouldExit: false, exitCode: 0, errorMessage: nil, helpMessage: nil
         )
 
-        let (agent, _) = try await AgentFactory.createAgent(from: argsWithPrompt)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: argsWithPrompt)
 
         XCTAssertEqual(agent.systemPrompt, "Be helpful",
             "systemPrompt should still be passed through correctly with auto-restore")
@@ -440,7 +440,7 @@ final class AutoRestoreTests: XCTestCase {
         // Regression: createAgent should still return (Agent, SessionStore) tuple.
         let args = makeArgs()
 
-        let (agent, sessionStore) = try await AgentFactory.createAgent(from: args)
+        let (agent, sessionStore, _) = try await AgentFactory.createAgent(from: args)
 
         XCTAssertNotNil(agent, "Agent should be returned")
         XCTAssertNotNil(sessionStore, "SessionStore should be returned")

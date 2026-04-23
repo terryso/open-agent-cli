@@ -592,7 +592,7 @@ final class AgentFactoryTests: XCTestCase {
     func testCreateAgent_noHooks_hookRegistryNotConfigured() async throws {
         let args = makeArgs(hooksConfigPath: nil)
 
-        let (agent, _) = try await AgentFactory.createAgent(from: args)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: args)
         XCTAssertNotNil(agent,
             "Agent creation should succeed without hooks config")
     }
@@ -617,7 +617,7 @@ final class AgentFactoryTests: XCTestCase {
 
         let args = makeArgs(hooksConfigPath: configPath)
 
-        let (agent, _) = try await AgentFactory.createAgent(from: args)
+        let (agent, _, _) = try await AgentFactory.createAgent(from: args)
         XCTAssertNotNil(agent,
             "Agent creation should succeed with valid hooks config")
     }

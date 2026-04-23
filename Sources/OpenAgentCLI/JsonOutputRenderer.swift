@@ -15,6 +15,7 @@ struct JsonRenderResult: Encodable {
     let toolCalls: [JsonToolCall]
     let cost: Double
     let turns: Int
+    let sessionId: String?
 }
 
 /// JSON-serializable error structure for --output json mode (error case).
@@ -74,7 +75,7 @@ struct JsonOutputRenderer: OutputRendering {
     ///
     /// The JSON is written as a single line followed by a newline character,
     /// making it suitable for piping to `jq` or other tools.
-    func renderSingleShotJson(_ result: QueryResult) {
+    func renderSingleShotJson(_ result: QueryResult, sessionId: String? = nil) {
         switch result.status {
         case .success:
             let toolCalls = extractToolCalls(from: result.messages)
@@ -82,7 +83,8 @@ struct JsonOutputRenderer: OutputRendering {
                 text: result.text,
                 toolCalls: toolCalls,
                 cost: result.totalCostUsd,
-                turns: result.numTurns
+                turns: result.numTurns,
+                sessionId: sessionId
             )
             writeJson(jsonResult)
 
