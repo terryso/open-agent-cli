@@ -40,6 +40,19 @@ final class AgentHolder {
     init(_ agent: Agent) { self.agent = agent }
 }
 
+// MARK: - ModeHolder
+
+/// A class wrapper around PermissionMode to allow mutation within REPLLoop's non-mutating methods.
+///
+/// Uses the same class-wrapper pattern as ``AgentHolder`` and ``CostTracker``
+/// so that ``REPLLoop`` — a struct with non-mutating methods — can update the
+/// current mode when the user runs `/mode <mode>` and reflect the new color
+/// on the next prompt.
+final class ModeHolder: @unchecked Sendable {
+    var mode: PermissionMode
+    init(_ mode: PermissionMode) { self.mode = mode }
+}
+
 // MARK: - CostTracker
 
 /// Tracks cumulative session cost and token usage across streaming queries.
@@ -76,6 +89,7 @@ struct REPLLoop {
     let sessionStore: SessionStore?
     let parsedArgs: ParsedArgs?
     let costTracker: CostTracker
+    let modeHolder: ModeHolder
 
     /// Convenience accessor for the current agent.
     var agent: Agent { agentHolder.agent }
@@ -89,6 +103,8 @@ struct REPLLoop {
         self.sessionStore = sessionStore
         self.parsedArgs = parsedArgs
         self.costTracker = costTracker
+        let initialMode = PermissionMode(rawValue: parsedArgs?.mode ?? "default") ?? .default
+        self.modeHolder = ModeHolder(initialMode)
     }
 
     /// Start the REPL loop.
@@ -101,7 +117,7 @@ struct REPLLoop {
     /// - Double Ctrl+C within 1s: exits CLI (breaks loop)
     /// - SIGTERM: breaks loop for graceful shutdown via closeAgentSafely()
     func start() async {
-        while let input = reader.readLine(prompt: "> ") {
+        while let input = reader.readLine(prompt: ANSI.coloredPrompt(forMode: modeHolder.mode, forceColor: true)) {
             let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
 
             // AC#6: Ignore empty/whitespace-only lines
@@ -303,6 +319,7 @@ struct REPLLoop {
         }
 
         agentHolder.agent.setPermissionMode(mode)
+        modeHolder.mode = mode
         renderer.output.write("Permission mode switched to \(mode.rawValue)\n")
     }
 
