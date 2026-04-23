@@ -184,8 +184,14 @@ enum CLI {
                 renderer.output.write("[Restoring last session...]\n")
             }
 
-            // Extract tool names for /tools command display
+            // Extract tool names for /tools command display and welcome screen
             let toolNames = AgentFactory.computeToolPool(from: args, skillRegistry: skillRegistry).map { $0.name }
+
+            // Welcome screen (Story 9.1): show config summary before first prompt
+            if !args.quiet && args.output != "json" {
+                let welcomeLine = "openagent \(CLIVersion.current) | model: \(args.model) | tools: \(toolNames.count) | mode: \(args.mode)\n"
+                renderer.output.write(ANSI.dim(welcomeLine))
+            }
 
             let repl = REPLLoop(agent: agent, renderer: renderer, reader: reader, toolNames: toolNames, skillRegistry: skillRegistry, sessionStore: sessionStore, parsedArgs: args)
             await repl.start()

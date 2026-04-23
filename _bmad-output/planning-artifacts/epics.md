@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3, 4]
+stepsCompleted: [1, 2, 3, 4, 5]
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/architecture.md
@@ -1060,3 +1060,205 @@ FR10.4: Epic 7 — Story 7.7
 
 **SDK API：** `SessionStore`, `SkillRegistry`
 **文件：** `CLI.swift`, `Tests/OpenAgentCLITests/`
+
+---
+
+## Epic 9: REPL 体验升级
+
+用户在 REPL 中获得现代 CLI 工具的基本交互能力 — 启动欢迎界面、彩色状态提示、历史回溯、Tab 补全和多行输入。REPL 从"能用"变成"顺手"。
+
+**覆盖的 FR：** FR-REPL1 (Tab 补全), FR-REPL2 (历史回溯), FR-REPL3 (多行输入), FR-REPL4 (欢迎界面), FR-REPL5 (彩色提示符)
+**覆盖的 NFR：** NFR3.1 (零配置), NFR3.4 (跨平台)
+**优先级：** P1
+**依赖：** Epic 1（REPL 基础设施）
+**技术方案：** 引入 [linenoise-swift](https://github.com/andybest/linenoise-swift)（纯 Swift 的 readline 替代品）作为 SPM 依赖，替代手写的 `FileHandleInputReader`。linenoise 提供行编辑、Emacs 快捷键、历史记录、Tab 补全回调，macOS + Linux 跨平台，零系统依赖。
+
+### FR 覆盖映射（Epic 9）
+
+FR-REPL4: Epic 9 — Story 9.1
+FR-REPL5: Epic 9 — Story 9.2
+FR-REPL2: Epic 9 — Story 9.3
+FR-REPL1: Epic 9 — Story 9.4
+FR-REPL3: Epic 9 — Story 9.5
+
+### Story 9.1: 欢迎界面
+
+作为一个用户，
+我想要在 CLI 启动时看到当前配置概要，
+以便我一眼就知道当前模型、工具和权限设置。
+
+**验收标准：**
+
+**假设** CLI 以默认设置启动 REPL 模式
+**当** REPL 就绪（`>` 提示符出现前）
+**那么** 显示欢迎信息，包含：
+  - CLI 版本（`CLIVersion.current`）
+  - 当前模型名
+  - 已加载工具数量
+  - 当前权限模式
+
+**假设** CLI 以 `--quiet` 模式启动
+**当** REPL 就绪
+**那么** 不显示欢迎信息
+
+**假设** CLI 以 `--output json` 模式启动
+**当** REPL 就绪
+**那么** 不显示欢迎信息
+
+**假设** CLI 以单次提问模式启动（带位置参数）
+**当** 执行查询
+**那么** 不显示欢迎信息
+
+**SDK API：** 无（纯输出）
+**文件：** `CLI.swift`（在 REPL 启动前添加欢迎信息输出）
+
+### Story 9.2: 彩色提示符
+
+作为一个用户，
+我想要提示符 `>` 根据当前权限模式显示不同颜色，
+以便我一眼就能识别当前的安全级别。
+
+**验收标准：**
+
+**假设** CLI 以默认模式（`default`）启动
+**当** `>` 提示符显示
+**那么** 使用绿色（`\u{001B}[32m`）
+
+**假设** CLI 以 `--mode plan` 启动
+**当** `>` 提示符显示
+**那么** 使用黄色（`\u{001B}[33m`）
+
+**假设** CLI 以 `--mode bypassPermissions` 启动
+**当** `>` 提示符显示
+**那么** 使用红色（`\u{001B}[31m`）
+
+**假设** 权限模式为 `acceptEdits`
+**当** `>` 提示符显示
+**那么** 使用蓝色（`\u{001B}[34m`）
+
+**假设** 权限模式为 `auto` 或 `dontAsk`
+**当** `>` 提示符显示
+**那么** 使用白色/默认色（`\u{001B}[0m`）
+
+**假设** 我在 REPL 中执行 `/mode plan`
+**当** 模式切换成功
+**那么** 下一个 `>` 提示符变为黄色
+
+**假设** 终端不支持 ANSI 颜色
+**当** `>` 提示符显示
+**那么** 回退为无颜色的普通 `>`
+
+**SDK API：** `PermissionMode`
+**文件：** `REPLLoop.swift`（prompt 渲染逻辑）, `ANSI.swift`（颜色常量）
+
+### Story 9.3: 历史回溯
+
+作为一个用户，
+我想要用上下箭头翻阅之前输入的命令，
+以便快速重复或修改之前的输入。
+
+**验收标准：**
+
+**假设** 我在当前会话中已输入 3 条消息（"hello", "list files", "show cost"）
+**当** 我按上箭头
+**那么** 提示符显示 "show cost"
+**当** 我再按上箭头
+**那么** 显示 "list files"
+**当** 我按下箭头
+**那么** 显示 "show cost"
+
+**假设** 我在历史中间位置修改了内容
+**当** 我按上箭头到某条历史，修改了内容，然后按回车发送
+**那么** 发送修改后的内容
+**并且** 原始历史条目保持不变
+
+**假设** 我退出并重新启动 CLI
+**当** 我按上箭头
+**那么** 可以看到上次会话的历史输入
+
+**假设** 历史文件 `~/.openagent/history` 不存在
+**当** CLI 启动
+**那么** 自动创建文件，从空历史开始
+
+**假设** 历史文件超过 1000 条
+**当** 新输入被记录
+**那么** 最早的条目被移除（FIFO）
+
+**假设** 历史文件损坏或不可读
+**当** CLI 启动
+**那么** 显示警告但正常启动，从空历史开始
+
+**SDK API：** 无（纯终端交互 + 文件 I/O）
+**文件：** `LinenoiseInputReader.swift`（新建，替换 `FileHandleInputReader`）, `Package.swift`（添加 linenoise-swift 依赖）
+**实现说明：** 此 Story 引入 [linenoise-swift](https://github.com/andybest/linenoise-swift) 并创建 `LinenoiseInputReader` 作为 `InputReading` 协议的新实现。linenoise 内置提供：
+  - 行编辑（Emacs 快捷键：Ctrl+A/E 跳首尾，Ctrl+U/K 删行，Ctrl+W 删词）
+  - 历史记录（上下箭头浏览）
+  - 历史持久化（`Linenoise.saveHistory()` / `loadHistory()`）
+  - 跨平台（macOS + Linux）
+  - 保留 `FileHandleInputReader` 作为非交互模式（单次提问、stdin 管道）的回退实现
+
+### Story 9.4: Tab 命令补全
+
+作为一个用户，
+我想要在输入 `/` 命令时按 Tab 自动补全，
+以便我不需要记住所有命令的精确拼写。
+
+**验收标准：**
+
+**假设** 我处于 REPL 模式
+**当** 我输入 `/m` 并按 Tab
+**那么** 自动补全为 `/mode`（唯一匹配）
+
+**假设** 我输入 `/` 并按 Tab
+**那么** 列出所有可用的 `/` 命令（`/help`, `/exit`, `/quit`, `/tools`, `/skills`, `/model`, `/mode`, `/cost`, `/clear`, `/sessions`, `/resume`, `/fork`, `/mcp`）
+
+**假设** 我输入 `/mcp ` 并按 Tab
+**那么** 列出 MCP 子命令（`status`, `reconnect`）
+
+**假设** 我输入 `/mode ` 并按 Tab
+**那么** 列出所有有效权限模式
+
+**假设** 我输入非 `/` 开头的普通文本并按 Tab
+**那么** 不触发补全，保持输入不变
+
+**假设** 存在多个匹配前缀
+**当** 我输入 `/s` 并按 Tab
+**那么** 列出 `/sessions`, `/skills` 等匹配项
+**并且** 输入保持 `/s` 不变
+
+**SDK API：** 无（纯终端交互）
+**文件：** `LinenoiseInputReader.swift`（注册 `completionCallback`）, `REPLLoop.swift`（补全候选列表）
+**实现依赖：** Story 9.3（需要 `LinenoiseInputReader` 基础）
+**实现说明：** 利用 linenoise 的 `completionCallback` API，根据当前输入前缀返回匹配的补全候选列表。补全逻辑在 REPLLoop 中维护（命令名、子命令、模式名），LinenoiseInputReader 在初始化时注册回调。
+
+### Story 9.5: 多行输入
+
+作为一个用户，
+我想要用 `\` 续行或 `"""` 包裹输入多行文本，
+以便我可以方便地粘贴代码或多段提示词。
+
+**验收标准：**
+
+**假设** 我输入 `这是一个长问题 \` 并按回车
+**当** 提示符变为 `...>`
+**那么** 我可以继续输入下一行
+**当** 输入完整内容后按回车（无 `\` 结尾）
+**那么** 所有行合并为一个完整输入发送给 Agent
+
+**假设** 我输入 `"""` 并按回车
+**当** 提示符变为 `...>`
+**那么** 进入多行模式
+**当** 我输入多行内容后再输入 `"""` 并按回车
+**那么** `"""` 之间的所有内容（包括换行）作为一个完整输入发送
+
+**假设** 我在多行模式中按 Ctrl+C
+**那么** 取消当前多行输入，回到 `>` 提示符
+
+**假设** 我输入以 `\` 结尾但后面有空白字符（如 `hello \  `）
+**当** 按回车
+**那么** 忽略末尾空白，正确识别为续行
+
+**SDK API：** 无（纯终端交互）
+**文件：** `REPLLoop.swift`（多行状态机：检测 `\` 和 `"""`，累积行缓冲，切换 prompt）
+**实现依赖：** Story 9.3（需要 `LinenoiseInputReader`）
+**实现说明：** linenoise 是行导向的（每次 `readLine` 返回一行）。多行逻辑在 REPLLoop 层实现：检测行尾 `\` 或独立的 `"""` 标记，切换 prompt 为 `...>`，累积行直到满足终止条件后合并发送。
