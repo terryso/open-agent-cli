@@ -739,13 +739,14 @@ final class AgentFactoryTests: XCTestCase {
             "resolveModel should return CLI default 'glm-5.1' for anthropic when not explicitly set")
     }
 
-    /// AC#4: resolveModel returns SDK default for openai when model not explicitly set.
-    func testResolveModel_openai_notExplicit_returnsSdkDefault() {
-        let args = makeArgs(model: "glm-5.1")  // ParsedArgs default
+    /// resolveModel returns args.model for any provider when model not explicitly set.
+    /// ConfigLoader may have set args.model from config.json — resolveModel respects it.
+    func testResolveModel_openai_notExplicit_returnsArgsModel() {
+        let args = makeArgs(model: "glm-5.1")  // ParsedArgs default / config value
         // explicitlySet does NOT contain "model"
         let result = AgentFactory.resolveModel(from: args, provider: .openai)
-        XCTAssertEqual(result, "claude-sonnet-4-6",
-            "resolveModel should return SDK default 'claude-sonnet-4-6' for openai when not explicitly set")
+        XCTAssertEqual(result, "glm-5.1",
+            "resolveModel should return args.model for openai when not explicitly set")
     }
 
     /// AC#4: resolveModel returns user's explicit model even when it differs from default.
@@ -784,10 +785,8 @@ final class AgentFactoryTests: XCTestCase {
 
     // MARK: AC#4 — OpenAI provider without explicit model
 
-    /// AC#4: --provider openai without --model should use the SDK default model.
-    /// When model is not explicitly set and provider is openai, resolveModel
-    /// returns the SDK default ("claude-sonnet-4-6") instead of the CLI default
-    /// ("glm-5.1") so that the SDK can apply provider-specific model selection.
+    /// --provider openai without --model should use args.model (from config or default).
+    /// ConfigLoader may have set args.model from config.json — resolveModel respects it.
     func testCreateAgent_openaiProvider_withoutExplicitModel_succeeds() async throws {
         let args = makeArgs(
             apiKey: "sk-test",
@@ -801,9 +800,9 @@ final class AgentFactoryTests: XCTestCase {
         let agent = try await AgentFactory.createAgent(from: args).0
         XCTAssertNotNil(agent,
             "Agent creation with --provider openai and no explicit --model should succeed")
-        // resolveModel should return SDK default for openai, not "glm-5.1"
-        XCTAssertEqual(agent.model, "claude-sonnet-4-6",
-            "Agent with --provider openai and no explicit --model should use SDK default model")
+        // resolveModel returns args.model regardless of provider when not explicitly set
+        XCTAssertEqual(agent.model, "glm-5.1",
+            "Agent with --provider openai and no explicit --model should use args.model")
     }
 
     // MARK: AC#1 — Full OpenAI configuration

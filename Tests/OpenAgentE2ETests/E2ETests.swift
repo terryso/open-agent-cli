@@ -7,6 +7,8 @@ import XCTest
 // external behavior: exit codes, stdout, stderr.
 //
 // These tests do NOT use @testable import — they treat the CLI as a black box.
+// They use the real ~/.openagent/config.json configuration and make real API calls.
+// Run manually via `swift test --filter OpenAgentE2ETests` — not in CI.
 
 final class E2ETests: XCTestCase {
 
@@ -39,16 +41,14 @@ final class E2ETests: XCTestCase {
     /// - Parameters:
     ///   - execPath: Path to the openagent binary.
     ///   - arguments: CLI arguments (without program name).
-    ///   - environment: Optional env overrides (merged with current env).
     ///   - stdinData: Optional data to pipe to stdin.
     ///   - timeout: Max wait time in seconds.
     /// - Returns: (stdout, stderr, exitCode, elapsedMs).
     private func launchCLI(
         execPath: String,
         arguments: [String],
-        environment: [String: String]? = nil,
         stdinData: Data? = nil,
-        timeout: TimeInterval = 15
+        timeout: TimeInterval = 30
     ) -> (stdout: String, stderr: String, exitCode: Int32, elapsedMs: Int64) {
         let process = Process()
         let stdoutPipe = Pipe()
@@ -60,14 +60,6 @@ final class E2ETests: XCTestCase {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
         process.standardInput = stdinPipe
-
-        if let env = environment {
-            var mergedEnv = ProcessInfo.processInfo.environment
-            for (key, value) in env {
-                mergedEnv[key] = value
-            }
-            process.environment = mergedEnv
-        }
 
         let start = CFAbsoluteTimeGetCurrent()
 
@@ -226,7 +218,6 @@ final class E2ETests: XCTestCase {
         let result = launchCLI(execPath: exec, arguments: ["--mode", "badmode"])
         XCTAssertTrue(result.stderr.contains("Invalid mode"),
             "stderr should mention 'Invalid mode', got: \(result.stderr)")
-        // Should list valid modes
         XCTAssertTrue(result.stderr.contains("default"),
             "stderr should list valid modes including 'default'")
     }
@@ -299,175 +290,14 @@ final class E2ETests: XCTestCase {
         XCTAssertEqual(result.exitCode, 1)
     }
 
-    // MARK: - Valid flag values (parse OK, fail later on missing API key)
+    // MARK: - --stdin + --skill mutual exclusion (AC#4)
 
-    func testValidMode_doesNotExitAtParse() throws {
-        // Valid mode should not cause a parse error — it proceeds to agent creation
-        // which will fail because no API key is provided.
+    func testStdinAndSkill_exitsWithError() throws {
         let exec = try resolveExecutable()
-        for mode in ["default", "acceptEdits", "bypassPermissions", "plan", "dontAsk", "auto"] {
-            let result = launchCLI(execPath: exec, arguments: ["--mode", mode, "test"])
-            // Should NOT be a parse error (exit 1 with "Invalid mode" message)
-            // It may exit 1 for other reasons (no API key), but stderr should not
-            // contain the parse error.
-            XCTAssertFalse(result.stderr.contains("Invalid mode"),
-                "Mode '\(mode)' should be valid, got stderr: \(result.stderr)")
-        }
-    }
-
-    func testValidToolsTiers_noParseError() throws {
-        let exec = try resolveExecutable()
-        for tier in ["core", "advanced", "specialist", "all"] {
-            let result = launchCLI(execPath: exec, arguments: ["--tools", tier, "test"])
-            XCTAssertFalse(result.stderr.contains("Invalid tools tier"),
-                "Tier '\(tier)' should be valid, got stderr: \(result.stderr)")
-        }
-    }
-
-    func testValidOutputFormats_noParseError() throws {
-        let exec = try resolveExecutable()
-        for format in ["text", "json"] {
-            let result = launchCLI(execPath: exec, arguments: ["--output", format, "test"])
-            XCTAssertFalse(result.stderr.contains("Invalid output format"),
-                "Format '\(format)' should be valid, got stderr: \(result.stderr)")
-        }
-    }
-
-    // MARK: - Single-shot without API key
-
-    func testSingleShot_noApiKey_exitsOne() throws {
-        let exec = try resolveExecutable()
-        let result = launchCLI(
-            execPath: exec,
-            arguments: ["hello world"],
-            environment: ["OPENAGENT_API_KEY": ""]
-        )
-        // Without API key, agent creation fails
-        XCTAssertEqual(result.exitCode, 1, "Single-shot without API key should exit 1")
-    }
-
-    func testSingleShot_noApiKey_stderrContainsError() throws {
-        let exec = try resolveExecutable()
-        let result = launchCLI(
-            execPath: exec,
-            arguments: ["hello"],
-            environment: ["OPENAGENT_API_KEY": ""]
-        )
-        XCTAssertTrue(result.stderr.localizedLowercase.contains("error"),
-            "stderr should contain error message, got: \(result.stderr)")
-    }
-
-    // MARK: - --stdin flag
-
-    func testStdin_noInput_exitsWithError() throws {
-        let exec = try resolveExecutable()
-        // Pipe empty data to stdin with --stdin flag
-        let result = launchCLI(
-            execPath: exec,
-            arguments: ["--stdin"],
-            environment: ["OPENAGENT_API_KEY": ""],
-            stdinData: Data()
-        )
-        // Empty stdin should produce an error
+        let result = launchCLI(execPath: exec, arguments: ["--stdin", "--skill", "foo"])
         XCTAssertEqual(result.exitCode, 1)
-    }
-
-    func testStdin_withData_usesStdinAsPrompt() throws {
-        let exec = try resolveExecutable()
-        let result = launchCLI(
-            execPath: exec,
-            arguments: ["--stdin"],
-            environment: ["OPENAGENT_API_KEY": ""],
-            stdinData: "what is 2+2?".data(using: .utf8)!
-        )
-        // Should not complain about missing stdin; will fail at API key check instead
-        XCTAssertFalse(result.stderr.contains("--stdin"),
-            "Should not complain about --stdin when data is provided, got: \(result.stderr)")
-    }
-
-    // MARK: - Flag combinations
-
-    func testQuietAndDebug_coexist() throws {
-        let exec = try resolveExecutable()
-        let result = launchCLI(
-            execPath: exec,
-            arguments: ["--quiet", "--debug", "test"],
-            environment: ["OPENAGENT_API_KEY": ""]
-        )
-        // Should not fail at parse stage
-        XCTAssertFalse(result.stderr.contains("Unknown flag"),
-            "--quiet and --debug should coexist, got: \(result.stderr)")
-    }
-
-    func testShortDebugFlag_works() throws {
-        let exec = try resolveExecutable()
-        let result = launchCLI(
-            execPath: exec,
-            arguments: ["-d", "test"],
-            environment: ["OPENAGENT_API_KEY": ""]
-        )
-        XCTAssertFalse(result.stderr.contains("Unknown flag"),
-            "-d should be a valid flag, got: \(result.stderr)")
-    }
-
-    func testMultipleFlags_combined() throws {
-        let exec = try resolveExecutable()
-        let result = launchCLI(
-            execPath: exec,
-            arguments: [
-                "--model", "glm-5.1",
-                "--mode", "auto",
-                "--tools", "core",
-                "--output", "json",
-                "--max-turns", "5",
-                "test prompt"
-            ],
-            environment: ["OPENAGENT_API_KEY": ""]
-        )
-        // All flags should parse without error
-        XCTAssertFalse(result.stderr.contains("Unknown flag"),
-            "Multiple valid flags should parse, got: \(result.stderr)")
-        XCTAssertFalse(result.stderr.contains("Invalid"),
-            "No validation errors expected, got: \(result.stderr)")
-    }
-
-    // MARK: - --tool-allow / --tool-deny
-
-    func testToolAllow_commaSeparated() throws {
-        let exec = try resolveExecutable()
-        let result = launchCLI(
-            execPath: exec,
-            arguments: ["--tool-allow", "Bash,Read", "test"],
-            environment: ["OPENAGENT_API_KEY": ""]
-        )
-        XCTAssertFalse(result.stderr.contains("Unknown flag"),
-            "--tool-allow should be a valid flag, got: \(result.stderr)")
-    }
-
-    func testToolDeny_commaSeparated() throws {
-        let exec = try resolveExecutable()
-        let result = launchCLI(
-            execPath: exec,
-            arguments: ["--tool-deny", "Write,Edit", "test"],
-            environment: ["OPENAGENT_API_KEY": ""]
-        )
-        XCTAssertFalse(result.stderr.contains("Unknown flag"),
-            "--tool-deny should be a valid flag, got: \(result.stderr)")
-    }
-
-    // MARK: - POSIX end-of-flags
-
-    func testDoubleDash_treatsFollowingAsPositional() throws {
-        let exec = try resolveExecutable()
-        let result = launchCLI(
-            execPath: exec,
-            arguments: ["--", "--help"],
-            environment: ["OPENAGENT_API_KEY": ""]
-        )
-        // After --, "--help" is treated as a positional prompt, not a flag
-        // So it should NOT print help output
-        XCTAssertFalse(result.stdout.contains("openagent [options]"),
-            "After --, --help should be a positional arg, not a flag")
+        XCTAssertTrue(result.stderr.contains("Cannot use --stdin and --skill together"),
+            "stderr should mention mutual exclusion, got: \(result.stderr)")
     }
 
     // MARK: - Startup performance
@@ -491,5 +321,159 @@ final class E2ETests: XCTestCase {
         let result = launchCLI(execPath: exec, arguments: ["--invalid"])
         XCTAssertLessThan(result.elapsedMs, 5000,
             "Invalid flag should fail fast within 5 seconds, took \(result.elapsedMs)ms")
+    }
+
+    // MARK: - Real E2E: Single-shot (uses real config, makes real API call)
+
+    func testSingleShot_returnsResponse() throws {
+        let exec = try resolveExecutable()
+        let result = launchCLI(
+            execPath: exec,
+            arguments: ["Respond with exactly the word: pong"]
+        )
+        XCTAssertEqual(result.exitCode, 0,
+            "Single-shot should succeed, stderr: \(result.stderr)")
+        XCTAssertTrue(result.stdout.localizedCaseInsensitiveContains("pong"),
+            "Response should contain 'pong', got: \(result.stdout.prefix(500))")
+    }
+
+    func testSingleShot_jsonMode_returnsValidJson() throws {
+        let exec = try resolveExecutable()
+        let result = launchCLI(
+            execPath: exec,
+            arguments: ["--output", "json", "Say exactly: hello"]
+        )
+        XCTAssertEqual(result.exitCode, 0,
+            "JSON mode should succeed, stderr: \(result.stderr)")
+        let data = result.stdout.data(using: .utf8)!
+        let json = try JSONSerialization.jsonObject(with: data)
+        XCTAssertTrue(json is [String: Any],
+            "Output should be a valid JSON object, got: \(result.stdout.prefix(500))")
+    }
+
+    func testSingleShot_quietMode_suppressesSummary() throws {
+        let exec = try resolveExecutable()
+        let result = launchCLI(
+            execPath: exec,
+            arguments: ["--quiet", "Say exactly: hello"]
+        )
+        XCTAssertEqual(result.exitCode, 0,
+            "Quiet mode should succeed, stderr: \(result.stderr)")
+        XCTAssertFalse(result.stdout.contains("Turns:"),
+            "Quiet mode should suppress summary, got: \(result.stdout.suffix(200))")
+        XCTAssertFalse(result.stdout.contains("Cost:"),
+            "Quiet mode should suppress cost info, got: \(result.stdout.suffix(200))")
+    }
+
+    // MARK: - Real E2E: --stdin (uses real config, makes real API call)
+
+    func testStdin_withData_completesSuccessfully() throws {
+        let exec = try resolveExecutable()
+        let result = launchCLI(
+            execPath: exec,
+            arguments: ["--stdin"],
+            stdinData: "Respond with exactly the word: pong".data(using: .utf8)!
+        )
+        XCTAssertEqual(result.exitCode, 0,
+            "Stdin mode should succeed, stderr: \(result.stderr)")
+        XCTAssertTrue(result.stdout.localizedCaseInsensitiveContains("pong"),
+            "Response should contain 'pong', got: \(result.stdout.prefix(500))")
+    }
+
+    func testStdin_noInput_exitsWithError() throws {
+        let exec = try resolveExecutable()
+        // Pipe empty data — isatty returns 0 (pipe), but stdin is empty
+        let result = launchCLI(
+            execPath: exec,
+            arguments: ["--stdin"],
+            stdinData: Data()
+        )
+        XCTAssertEqual(result.exitCode, 1,
+            "Empty stdin should exit 1")
+        XCTAssertTrue(result.stderr.contains("stdin"),
+            "stderr should mention stdin error, got: \(result.stderr)")
+    }
+
+    // MARK: - Real E2E: Flag combinations (uses real config, makes real API call)
+
+    func testMultipleFlags_combined() throws {
+        let exec = try resolveExecutable()
+        let result = launchCLI(
+            execPath: exec,
+            arguments: [
+                "--mode", "auto",
+                "--tools", "core",
+                "--max-turns", "3",
+                "Respond with exactly the word: pong"
+            ]
+        )
+        XCTAssertEqual(result.exitCode, 0,
+            "Multiple flags should succeed, stderr: \(result.stderr)")
+        XCTAssertTrue(result.stdout.localizedCaseInsensitiveContains("pong"),
+            "Response should contain 'pong', got: \(result.stdout.prefix(500))")
+    }
+
+    func testQuietAndDebug_coexist() throws {
+        let exec = try resolveExecutable()
+        let result = launchCLI(
+            execPath: exec,
+            arguments: ["--quiet", "--debug", "Say exactly: hello"]
+        )
+        XCTAssertEqual(result.exitCode, 0,
+            "--quiet and --debug should coexist, stderr: \(result.stderr)")
+    }
+
+    func testToolAllow_filtersTools() throws {
+        let exec = try resolveExecutable()
+        let result = launchCLI(
+            execPath: exec,
+            arguments: ["--tool-allow", "Bash,Read", "Respond with exactly: pong"]
+        )
+        XCTAssertEqual(result.exitCode, 0,
+            "--tool-allow should work, stderr: \(result.stderr)")
+        XCTAssertTrue(result.stdout.localizedCaseInsensitiveContains("pong"),
+            "Response should contain 'pong', got: \(result.stdout.prefix(500))")
+    }
+
+    func testToolDeny_excludesTools() throws {
+        let exec = try resolveExecutable()
+        let result = launchCLI(
+            execPath: exec,
+            arguments: ["--tool-deny", "Write,Edit,Bash", "Respond with exactly: pong"]
+        )
+        XCTAssertEqual(result.exitCode, 0,
+            "--tool-deny should work, stderr: \(result.stderr)")
+        XCTAssertTrue(result.stdout.localizedCaseInsensitiveContains("pong"),
+            "Response should contain 'pong', got: \(result.stdout.prefix(500))")
+    }
+
+    // MARK: - POSIX end-of-flags
+
+    func testDoubleDash_treatsFollowingAsPositional() throws {
+        let exec = try resolveExecutable()
+        let result = launchCLI(
+            execPath: exec,
+            arguments: ["--", "--help"]
+        )
+        // After --, "--help" is a positional prompt sent to the LLM
+        XCTAssertFalse(result.stdout.contains("openagent [options]"),
+            "After --, --help should be a positional arg, not trigger help output")
+    }
+
+    // MARK: - Real E2E: --stdin terminal guard (AC#3)
+
+    func testStdin_terminalInput_exitsWithError() throws {
+        // When launched via Process, stdin is a pipe (not tty), so isatty returns 0.
+        // This test verifies the error path by piping nothing and checking the
+        // "no input received" error. The actual isatty guard is tested via unit tests.
+        let exec = try resolveExecutable()
+        let result = launchCLI(
+            execPath: exec,
+            arguments: ["--stdin"],
+            stdinData: Data()
+        )
+        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertTrue(result.stderr.contains("stdin"),
+            "Should report stdin error, got: \(result.stderr)")
     }
 }
