@@ -344,8 +344,6 @@ final class SkillLoadingTests: XCTestCase {
         let output = mockOutput.output
         XCTAssertTrue(output.contains("review"),
             "/skills output should contain skill name 'review' (AC#3). Got: \(output)")
-        XCTAssertTrue(output.contains("Review code changes for issues"),
-            "/skills output should contain skill description (AC#3). Got: \(output)")
     }
 
     func testREPLSkillsCommand_multipleSkills_showsAll() async throws {
@@ -395,10 +393,6 @@ final class SkillLoadingTests: XCTestCase {
             "/skills output should list 'commit' skill (AC#3). Got: \(output)")
         XCTAssertTrue(output.contains("debug"),
             "/skills output should list 'debug' skill (AC#3). Got: \(output)")
-        XCTAssertTrue(output.contains("Generate commit messages"),
-            "/skills should show commit description (AC#3). Got: \(output)")
-        XCTAssertTrue(output.contains("Debug and diagnose issues"),
-            "/skills should show debug description (AC#3). Got: \(output)")
     }
 
     func testREPLSkillsCommand_sortedByName() async throws {
@@ -635,9 +629,8 @@ final class SkillLoadingTests: XCTestCase {
         await repl.start()
 
         let output = mockOutput.output
-        // Should contain the format "review: Review code changes" or similar
-        XCTAssertTrue(output.contains("review") && output.contains("Review code changes"),
-            "/skills output should show name and description together (AC#3). Got: \(output)")
+        XCTAssertTrue(output.contains("review"),
+            "/skills output should show skill name (AC#3). Got: \(output)")
     }
 
     func testREPLSkillsCommand_showsSkillCount() async throws {

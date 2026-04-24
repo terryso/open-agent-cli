@@ -87,8 +87,6 @@ final class LinenoiseInputReader: InputReading, @unchecked Sendable {
                 FileHandle.standardOutput.write("\u{001B}[0m".data(using: .utf8) ?? Data())
             }
 
-            // Write explicit \r\n so subsequent output starts on a fresh line.
-            FileHandle.standardOutput.write("\r\n".data(using: .utf8) ?? Data())
             if !line.isEmpty {
                 addHistoryEntry(line)
             }

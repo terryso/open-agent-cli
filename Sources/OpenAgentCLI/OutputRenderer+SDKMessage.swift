@@ -61,16 +61,16 @@ extension OutputRenderer {
         switch data.subtype {
         case .success:
             let summary = formatSummary(data)
-            output.write("--- \(summary)\n")
+            output.write("\n--- \(summary)\n")
 
         case .cancelled:
             let label = ANSI.dim("[cancelled]")
-            output.write("--- \(label)\n")
+            output.write("\n--- \(label)\n")
 
         case .errorMaxTurns, .errorDuringExecution, .errorMaxBudgetUsd, .errorMaxStructuredOutputRetries:
             let tag = ANSI.red("[\(data.subtype.rawValue)]")
             let summary = formatSummary(data)
-            output.write("--- \(tag) \(summary)\n")
+            output.write("\n--- \(tag) \(summary)\n")
 
             // AC#5: Display each individual error message in red.
             if let errors = data.errors {

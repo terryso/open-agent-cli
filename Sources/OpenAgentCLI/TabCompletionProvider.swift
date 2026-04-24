@@ -6,12 +6,24 @@ import OpenAgentSDK
 /// returns matching completion options for linenoise to display.
 struct TabCompletionProvider {
 
-    /// All available slash commands.
-    private let commands: [String] = [
+    /// Built-in slash commands.
+    private let builtInCommands: [String] = [
         "/help", "/exit", "/quit", "/tools", "/skills",
         "/model", "/mode", "/cost", "/clear",
         "/sessions", "/resume", "/fork", "/mcp"
     ]
+
+    /// Skill names prefixed with "/" (populated from SkillRegistry).
+    private let skillCommands: [String]
+
+    /// All available slash commands (built-in + skills).
+    private var commands: [String] {
+        builtInCommands + skillCommands
+    }
+
+    init(skillNames: [String] = []) {
+        self.skillCommands = skillNames.map { "/" + $0 }
+    }
 
     /// /mcp subcommands.
     private let mcpSubcommands: [String] = ["status", "reconnect"]

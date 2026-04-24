@@ -113,7 +113,8 @@ enum CLI {
             // If no positional prompt, enter REPL; otherwise let single-shot handle it
             if args.prompt == nil {
                 let reader = LinenoiseInputReader()
-                let completionProvider = TabCompletionProvider()
+                let skillNames = skillRegistry.allSkills.map { $0.name }
+                let completionProvider = TabCompletionProvider(skillNames: skillNames)
                 reader.setCompletionCallback { input in
                     completionProvider.completions(for: input)
                 }
@@ -169,7 +170,8 @@ enum CLI {
         } else if args.skillName == nil {
             // REPL mode: start interactive loop (only if --skill was not already handled).
             let reader = LinenoiseInputReader()
-            let completionProvider = TabCompletionProvider()
+            let skillNames = skillRegistry.allSkills.map { $0.name }
+            let completionProvider = TabCompletionProvider(skillNames: skillNames)
             reader.setCompletionCallback { input in
                 completionProvider.completions(for: input)
             }

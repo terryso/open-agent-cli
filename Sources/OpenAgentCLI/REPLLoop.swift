@@ -248,8 +248,15 @@ struct REPLLoop {
             return await handleSlashCommand(trimmed)
         }
 
-        // Send to Agent and render stream with interrupt checking.
-        let stream = agentHolder.agent.stream(trimmed)
+        return await streamToAgent(trimmed)
+    }
+
+    /// Stream a message to the Agent and render the response.
+    ///
+    /// Handles interrupt checking and cost tracking.
+    /// Returns true if the REPL should exit (forceExit/terminate signal).
+    private func streamToAgent(_ message: String) async -> Bool {
+        let stream = agentHolder.agent.stream(message)
         for await message in stream {
             // Intercept result messages to track cumulative cost
             if case .result(let data) = message {
@@ -315,7 +322,27 @@ struct REPLLoop {
         case "/mcp":
             await handleMcp(parts: parts)
         default:
-            // Unknown command
+            // Try to find and invoke a matching skill
+            let skillName = String(command.dropFirst()) // strip leading /
+            if let registry = skillRegistry,
+               let skill = registry.find(skillName),
+               skill.userInvocable,
+               skill.isAvailable() {
+                let args = parts.count > 1 ? String(parts[1]) : ""
+                var message = "<command-name>/\(skill.name)</command-name>\n"
+                message += "<command-message>\(skill.name)</command-message>\n"
+                if !args.isEmpty {
+                    message += "<command-args>\(args)</command-args>\n"
+                }
+                if let baseDir = skill.baseDir {
+                    message += "Base directory for this skill: \(baseDir)\n"
+                }
+                message += skill.promptTemplate
+                if !args.isEmpty {
+                    message += "\n\nARGUMENTS: \(args)"
+                }
+                return await streamToAgent(message)
+            }
             renderer.output.write("Unknown command: \(input). Type /help for available commands.\r\n")
         }
         return false
@@ -356,7 +383,7 @@ struct REPLLoop {
         }
     }
 
-    /// Print the list of loaded skills with name and description, sorted by name.
+    /// Print the list of loaded skill names, sorted alphabetically.
     private func printSkills() {
         guard let registry = skillRegistry else {
             renderer.output.write("No skills loaded.\r\n")
@@ -370,7 +397,7 @@ struct REPLLoop {
             let sorted = skills.sorted { $0.name < $1.name }
             renderer.output.write("Available skills (\(sorted.count)):\r\n")
             for skill in sorted {
-                renderer.output.write("  \(skill.name): \(skill.description)\r\n")
+                renderer.output.write("  /\(skill.name)\r\n")
             }
         }
     }
