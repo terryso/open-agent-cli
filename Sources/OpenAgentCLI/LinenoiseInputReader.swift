@@ -55,19 +55,28 @@ final class LinenoiseInputReader: InputReading, @unchecked Sendable {
     func readLine(prompt: String) -> String? {
         // Linenoise uses prompt.count for cursor positioning, which breaks with
         // ANSI escape codes (it counts invisible bytes, shifting the cursor right).
-        // Strip ANSI codes and pass only the visible text.
+        // Strip ANSI codes from the prompt passed to linenoise, but apply the
+        // color at the terminal level so input text still appears colored.
         let visiblePrompt = stripANSI(prompt)
+        let colorCode = extractANSIColor(prompt)
 
         // Ensure cursor is at column 0 before linenoise takes over the terminal.
-        // Previous output (welcome screen, command results) may leave the cursor
-        // at a non-zero column because linenoise disables OPOST in raw mode,
-        // which prevents automatic \n→\r\n conversion.
         FileHandle.standardOutput.write("\r".data(using: .utf8) ?? Data())
+
+        // Set terminal color before linenoise starts editing.
+        // This makes the prompt AND user input appear in the mode color.
+        if let color = colorCode {
+            FileHandle.standardOutput.write(color.data(using: .utf8) ?? Data())
+        }
 
         do {
             let line = try linenoise.getLine(prompt: visiblePrompt)
-            // Linenoise's editLine returns on Enter without emitting a newline,
-            // and raw mode disables OPOST (so \n won't become \r\n).
+
+            // Reset color after linenoise returns.
+            if colorCode != nil {
+                FileHandle.standardOutput.write("\u{001B}[0m".data(using: .utf8) ?? Data())
+            }
+
             // Write explicit \r\n so subsequent output starts on a fresh line.
             FileHandle.standardOutput.write("\r\n".data(using: .utf8) ?? Data())
             if !line.isEmpty {
@@ -76,6 +85,9 @@ final class LinenoiseInputReader: InputReading, @unchecked Sendable {
             }
             return line
         } catch LinenoiseError.CTRL_C {
+            if colorCode != nil {
+                FileHandle.standardOutput.write("\u{001B}[0m".data(using: .utf8) ?? Data())
+            }
             FileHandle.standardOutput.write("\r\n".data(using: .utf8) ?? Data())
             return ""
         } catch {
@@ -85,9 +97,15 @@ final class LinenoiseInputReader: InputReading, @unchecked Sendable {
 
     /// Strip all ANSI CSI escape sequences from a string.
     private func stripANSI(_ text: String) -> String {
-        // Match ESC [ ... m (SGR sequences used for colors/styles)
         let pattern = "\u{001B}\\[[0-9;]*m"
         return text.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
+    }
+
+    /// Extract the first ANSI SGR color code from a string.
+    private func extractANSIColor(_ text: String) -> String? {
+        let pattern = "\u{001B}\\[[0-9;]*m"
+        guard let range = text.range(of: pattern, options: .regularExpression) else { return nil }
+        return String(text[range])
     }
 
     // MARK: - Tab Completion
