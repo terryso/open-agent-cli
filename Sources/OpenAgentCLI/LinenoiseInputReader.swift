@@ -1,9 +1,9 @@
 import Foundation
-import LineNoise
+import LineReader
 
 // MARK: - LinenoiseInputReader
 
-/// Input reader backed by linenoise-swift, providing line editing,
+/// Input reader backed by CommandLineKit's LineReader, providing line editing,
 /// command history navigation, and cross-session history persistence.
 ///
 /// Conforms to ``InputReading`` so it can be used as a drop-in replacement
@@ -14,8 +14,9 @@ import LineNoise
 /// re-displays the prompt). Ctrl+D returns nil (triggers REPL exit).
 final class LinenoiseInputReader: InputReading, @unchecked Sendable {
 
-    private let linenoise: LineNoise
+    private let lineReader: LineReader?
     private let historyPath: String
+    private var historyEntries: [String] = []
 
     // Exposed for testing (AC#5 verification)
     private(set) var historyMaxLength: Int = 1000
@@ -33,8 +34,7 @@ final class LinenoiseInputReader: InputReading, @unchecked Sendable {
     /// Used for testing with temporary directories. Creates the parent
     /// directory if it does not exist, and loads any existing history.
     init(historyPath: String) {
-        self.linenoise = LineNoise()
-        self.linenoise.setHistoryMaxLength(1000)
+        self.lineReader = LineReader()
         self.historyPath = historyPath
 
         // Ensure parent directory exists
@@ -42,37 +42,47 @@ final class LinenoiseInputReader: InputReading, @unchecked Sendable {
         try? FileManager.default.createDirectory(
             atPath: dir, withIntermediateDirectories: true)
 
-        // Load history (AC#6: file missing/corrupted -- continue with empty history)
-        do {
-            try linenoise.loadHistory(fromFile: historyPath)
-        } catch {
-            // Silently continue -- first launch or corrupted file
+        // Load history from file
+        historyEntries = Self.loadHistoryFromFile(historyPath)
+
+        // Configure LineReader if available (TTY)
+        if let lr = lineReader {
+            lr.setHistoryMaxLength(UInt(historyMaxLength))
+            for entry in historyEntries {
+                lr.addHistory(entry)
+            }
         }
     }
 
     // MARK: - InputReading Conformance
 
     func readLine(prompt: String) -> String? {
-        // Linenoise uses prompt.count for cursor positioning, which breaks with
+        guard let lr = lineReader else {
+            // Non-TTY fallback
+            FileHandle.standardOutput.write((prompt).data(using: .utf8) ?? Data())
+            return Swift.readLine()
+        }
+
+        // LineReader uses prompt.count for cursor positioning, which breaks with
         // ANSI escape codes (it counts invisible bytes, shifting the cursor right).
-        // Strip ANSI codes from the prompt passed to linenoise, but apply the
+        // Strip ANSI codes from the prompt passed to LineReader, but apply the
         // color at the terminal level so input text still appears colored.
         let visiblePrompt = stripANSI(prompt)
         let colorCode = extractANSIColor(prompt)
 
-        // Ensure cursor is at column 0 before linenoise takes over the terminal.
+        // Ensure cursor is at column 0 before LineReader takes over the terminal.
         FileHandle.standardOutput.write("\r".data(using: .utf8) ?? Data())
 
-        // Set terminal color before linenoise starts editing.
+        // Set terminal color before LineReader starts editing.
         // This makes the prompt AND user input appear in the mode color.
         if let color = colorCode {
             FileHandle.standardOutput.write(color.data(using: .utf8) ?? Data())
         }
 
         do {
-            let line = try linenoise.getLine(prompt: visiblePrompt)
+            let line = try lr.readLine(prompt: visiblePrompt)
 
-            // Reset color after linenoise returns.
+            // Reset color after LineReader returns.
             if colorCode != nil {
                 FileHandle.standardOutput.write("\u{001B}[0m".data(using: .utf8) ?? Data())
             }
@@ -80,11 +90,10 @@ final class LinenoiseInputReader: InputReading, @unchecked Sendable {
             // Write explicit \r\n so subsequent output starts on a fresh line.
             FileHandle.standardOutput.write("\r\n".data(using: .utf8) ?? Data())
             if !line.isEmpty {
-                linenoise.addHistory(line)
-                saveHistorySilently()
+                addHistoryEntry(line)
             }
             return line
-        } catch LinenoiseError.CTRL_C {
+        } catch LineReaderError.CTRLC {
             if colorCode != nil {
                 FileHandle.standardOutput.write("\u{001B}[0m".data(using: .utf8) ?? Data())
             }
@@ -112,11 +121,11 @@ final class LinenoiseInputReader: InputReading, @unchecked Sendable {
 
     /// Register a Tab-completion callback.
     ///
-    /// Wraps linenoise-swift's `setCompletionCallback`, keeping the linenoise
+    /// Wraps LineReader's `setCompletionCallback`, keeping the
     /// instance private. The callback receives the current input buffer text
     /// and returns a list of matching completion candidates.
     func setCompletionCallback(_ callback: @escaping (String) -> [String]) {
-        linenoise.setCompletionCallback(callback)
+        lineReader?.setCompletionCallback(callback)
     }
 
     // MARK: - Public Helpers (used by tests)
@@ -128,33 +137,38 @@ final class LinenoiseInputReader: InputReading, @unchecked Sendable {
     /// persistence can be verified.
     func addHistoryEntry(_ entry: String) {
         guard !entry.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        linenoise.addHistory(entry)
+
+        // Don't add duplicate at end
+        if historyEntries.last == entry { return }
+
+        historyEntries.append(entry)
+
+        // Enforce FIFO limit
+        if historyEntries.count > historyMaxLength {
+            historyEntries.removeFirst()
+        }
+
+        lineReader?.addHistory(entry)
         saveHistorySilently()
     }
 
     /// Number of entries currently held in the history buffer.
     ///
-    /// Since linenoise-swift's `History` class is internal, we determine
-    /// the count by re-loading the persisted history file. This is only
+    /// Determined by reading the persisted history file. This is only
     /// used in tests.
     var historyCount: Int {
-        do {
-            let content = try String(contentsOfFile: historyPath, encoding: .utf8)
-            let lines = content.split(separator: "\n", omittingEmptySubsequences: true)
-            return lines.count
-        } catch {
-            return 0
-        }
+        return historyEntries.count
     }
 
     // MARK: - Private
 
     private func saveHistorySilently() {
-        do {
-            try linenoise.saveHistory(toFile: historyPath)
-        } catch {
-            // Save failure is non-blocking -- the history will be lost
-            // if the process exits, but functionality is unaffected.
-        }
+        let content = historyEntries.joined(separator: "\n")
+        try? content.write(toFile: historyPath, atomically: true, encoding: .utf8)
+    }
+
+    private static func loadHistoryFromFile(_ path: String) -> [String] {
+        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { return [] }
+        return content.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
     }
 }
