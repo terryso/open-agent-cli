@@ -1,5 +1,5 @@
 # generated: 2026-04-19
-# last_updated: 2026-04-24 (Story 9-4 done)
+# last_updated: 2026-04-24 (Story 9-5 done)
 # project: open-agent-cli
 # project_key: NOKEY
 # tracking_system: file-system
@@ -107,10 +107,10 @@ development_status:
   epic-8-retrospective: optional
 
   # Epic 9: REPL 体验升级 (P1)
-  epic-9: in-progress
+  epic-9: done
   9-1-welcome-screen: done
   9-2-colored-prompt: done
   9-3-command-history: done
   9-4-tab-completion: done
-  9-5-multiline-input: backlog
+  9-5-multiline-input: done
   epic-9-retrospective: optional

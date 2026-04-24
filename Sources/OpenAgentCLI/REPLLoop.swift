@@ -112,74 +112,175 @@ struct REPLLoop {
     /// Continues reading input and dispatching to the Agent until the user
     /// types /exit, /quit, or the input reader returns nil (EOF).
     ///
+    /// Multiline support (Story 9.5):
+    /// - Backslash continuation: lines ending with `\` enter continuation mode
+    /// - Triple-quote mode: `"""` on its own line starts/ends a multiline block
+    /// - Ctrl+C during multiline: cancels and returns to main prompt
+    ///
     /// Signal handling:
     /// - Single Ctrl+C during streaming: interrupts Agent, re-shows prompt
     /// - Double Ctrl+C within 1s: exits CLI (breaks loop)
     /// - SIGTERM: breaks loop for graceful shutdown via closeAgentSafely()
     func start() async {
-        while let input = reader.readLine(prompt: ANSI.coloredPrompt(forMode: modeHolder.mode, forceColor: true)) {
-            let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        var multilineBuffer: [String] = []
+        var inMultiline = false
+        var inTripleQuote = false
 
-            // AC#6: Ignore empty/whitespace-only lines
+        while true {
+            // Choose prompt based on multiline state
+            let prompt: String
+            if inMultiline || inTripleQuote {
+                prompt = ANSI.coloredContinuationPrompt(forMode: modeHolder.mode, forceColor: true)
+            } else {
+                prompt = ANSI.coloredPrompt(forMode: modeHolder.mode, forceColor: true)
+            }
+
+            guard let rawInput = reader.readLine(prompt: prompt) else {
+                break  // EOF (Ctrl+D)
+            }
+
+            // --- Ctrl+C / empty line handling ---
+            // Empty input can mean Ctrl+C (signal) or the user pressed Enter on
+            // a blank line.  In multiline mode we distinguish them via
+            // SignalHandler: a pending .interrupt means Ctrl+C was pressed.
+            // At the main prompt, empty lines are simply ignored.
+            if rawInput.isEmpty {
+                if inMultiline || inTripleQuote {
+                    let sig = SignalHandler.check()
+                    if sig == .interrupt || sig == .forceExit {
+                        // Ctrl+C during multiline — cancel and return to main prompt
+                        renderer.output.write("^C\n")
+                        multilineBuffer = []
+                        inMultiline = false
+                        inTripleQuote = false
+                        continue
+                    }
+                    // Plain Enter in multiline — accumulate as empty content line
+                    multilineBuffer.append("")
+                    continue
+                }
+                // Normal empty line at main prompt — ignore
+                continue
+            }
+
+            let trimmed = rawInput.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // --- Triple-quote mode ---
+            if inTripleQuote {
+                if trimmed == "\"\"\"" {
+                    // End triple-quote mode
+                    let fullInput = multilineBuffer.joined(separator: "\n")
+                    multilineBuffer = []
+                    inTripleQuote = false
+                    guard !fullInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+                    if await processInput(fullInput) { return }
+                } else {
+                    // Preserve original content (including indentation and empty lines)
+                    multilineBuffer.append(rawInput)
+                }
+                continue
+            }
+
+            // --- Backslash continuation mode ---
+            if inMultiline {
+                let rstripped = rawInput.trimmingCharacters(in: .whitespaces)
+                if rstripped.hasSuffix("\\") && rstripped != "\\" {
+                    // Continue accumulating, strip trailing backslash
+                    let lineWithoutSlash = String(rstripped.dropLast())
+                    multilineBuffer.append(lineWithoutSlash)
+                } else {
+                    // Terminate continuation
+                    multilineBuffer.append(rawInput)
+                    let fullInput = multilineBuffer.joined(separator: "\n")
+                    multilineBuffer = []
+                    inMultiline = false
+                    guard !fullInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+                    if await processInput(fullInput) { return }
+                }
+                continue
+            }
+
+            // --- Not in multiline mode: check for entry conditions ---
+
+            // Triple-quote entry: entire trimmed line is """
+            if trimmed == "\"\"\"" {
+                inTripleQuote = true
+                multilineBuffer = []
+                continue
+            }
+
+            // Backslash entry: line ends with \ (after rstripping whitespace)
+            // but bare "\" alone is not a continuation
+            let rstripped = rawInput.trimmingCharacters(in: .whitespaces)
+            if rstripped.hasSuffix("\\") && rstripped != "\\" {
+                let lineWithoutSlash = String(rstripped.dropLast())
+                multilineBuffer = [lineWithoutSlash]
+                inMultiline = true
+                continue
+            }
+
+            // --- Normal single-line input (existing behavior) ---
             guard !trimmed.isEmpty else { continue }
+            if await processInput(trimmed) { return }
+        }
+    }
 
-            // Check for pending signals between reads.
-            // This catches SIGTERM that arrived while waiting for input,
-            // and any leftover interrupt state from previous iterations.
-            let preCheck = SignalHandler.check()
-            if preCheck == .terminate || preCheck == .forceExit {
-                break
-            }
-            // If an interrupt arrived while waiting for input (idle state),
-            // just clear it -- the user pressed Ctrl+C at the prompt.
-            // Output ^C and re-show the prompt (continue the loop).
-            if preCheck == .interrupt {
-                renderer.output.write("^C\n")
-                continue
-            }
+    /// Process a complete input (after multiline merging if applicable).
+    ///
+    /// Handles signal checking, slash command dispatch, and Agent streaming.
+    /// Returns true if the REPL should exit.
+    private func processInput(_ input: String) async -> Bool {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
 
-            // Slash commands
-            if trimmed.hasPrefix("/") {
-                if await handleSlashCommand(trimmed) { break }
-                continue
-            }
+        // Check for pending signals between reads.
+        let preCheck = SignalHandler.check()
+        if preCheck == .terminate || preCheck == .forceExit {
+            return true
+        }
+        if preCheck == .interrupt {
+            renderer.output.write("^C\n")
+            return false
+        }
 
-            // AC#2, AC#3: Send to Agent and render stream with interrupt checking.
-            // Instead of using renderer.renderStream(), we manually iterate
-            // the stream so we can check SignalHandler between messages.
-            let stream = agentHolder.agent.stream(trimmed)
-            for await message in stream {
-                // Intercept result messages to track cumulative cost
-                if case .result(let data) = message {
-                    costTracker.cumulativeCostUsd += data.totalCostUsd
-                    if let usage = data.usage {
-                        costTracker.cumulativeInputTokens += usage.inputTokens
-                        costTracker.cumulativeOutputTokens += usage.outputTokens
-                    }
+        // Slash commands
+        if trimmed.hasPrefix("/") {
+            return await handleSlashCommand(trimmed)
+        }
+
+        // Send to Agent and render stream with interrupt checking.
+        let stream = agentHolder.agent.stream(trimmed)
+        for await message in stream {
+            // Intercept result messages to track cumulative cost
+            if case .result(let data) = message {
+                costTracker.cumulativeCostUsd += data.totalCostUsd
+                if let usage = data.usage {
+                    costTracker.cumulativeInputTokens += usage.inputTokens
+                    costTracker.cumulativeOutputTokens += usage.outputTokens
                 }
-                let event = SignalHandler.check()
-                if event == .interrupt || event == .forceExit || event == .terminate {
-                    agentHolder.agent.interrupt()
-                    renderer.output.write("^C\n")
-                    if event == .forceExit || event == .terminate {
-                        return  // Exit REPL immediately
-                    }
-                    break  // Break inner stream loop, continue REPL while loop
-                }
-                renderer.render(message)
             }
-            // Also check for pending signals after stream completes.
-            // This handles the case where the signal arrives during the
-            // last stream iteration but is only processed after for-await exits.
-            let postCheck = SignalHandler.check()
-            if postCheck == .interrupt || postCheck == .forceExit || postCheck == .terminate {
+            let event = SignalHandler.check()
+            if event == .interrupt || event == .forceExit || event == .terminate {
                 agentHolder.agent.interrupt()
                 renderer.output.write("^C\n")
-                if postCheck == .forceExit || postCheck == .terminate {
-                    return
+                if event == .forceExit || event == .terminate {
+                    return true
                 }
+                break
+            }
+            renderer.render(message)
+        }
+        // Check for pending signals after stream completes.
+        let postCheck = SignalHandler.check()
+        if postCheck == .interrupt || postCheck == .forceExit || postCheck == .terminate {
+            agentHolder.agent.interrupt()
+            renderer.output.write("^C\n")
+            if postCheck == .forceExit || postCheck == .terminate {
+                return true
             }
         }
+
+        return false
     }
 
     /// Handle a slash command.

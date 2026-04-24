@@ -76,17 +76,40 @@ enum ANSI {
     ///     tty status. Useful for testing. Defaults to `false`.
     /// - Returns: A colored prompt string, or plain `"> "` if no tty.
     static func coloredPrompt(forMode mode: PermissionMode, forceColor: Bool = false) -> String {
-        let prompt = "> "
-        guard forceColor || isatty(STDOUT_FILENO) != 0 else { return prompt }
+        formattedPrompt("> ", forMode: mode, forceColor: forceColor)
+    }
+
+    /// Generate a colored continuation prompt for multiline input mode.
+    ///
+    /// Uses the same color mapping as ``coloredPrompt(forMode:forceColor:)`` but
+    /// displays `"...>"` instead of `"> "` to visually indicate that the user
+    /// is in a multiline continuation (backslash or triple-quote).
+    ///
+    /// - Parameters:
+    ///   - mode: The current permission mode.
+    ///   - forceColor: When `true`, always generate ANSI codes regardless of
+    ///     tty status. Defaults to `false`.
+    /// - Returns: A colored continuation prompt, or plain `"...> "` if no tty.
+    static func coloredContinuationPrompt(forMode mode: PermissionMode, forceColor: Bool = false) -> String {
+        formattedPrompt("...> ", forMode: mode, forceColor: forceColor)
+    }
+
+    /// Shared implementation for prompt generation.
+    ///
+    /// Both ``coloredPrompt(forMode:forceColor:)`` and
+    /// ``coloredContinuationPrompt(forMode:forceColor:)`` delegate here
+    /// to avoid duplicating the color-mapping switch.
+    private static func formattedPrompt(_ text: String, forMode mode: PermissionMode, forceColor: Bool) -> String {
+        guard forceColor || isatty(STDOUT_FILENO) != 0 else { return text }
         let colorCode: String
         switch mode {
         case .default: colorCode = "\u{001B}[32m"   // green
         case .plan: colorCode = "\u{001B}[33m"       // yellow
         case .bypassPermissions: colorCode = "\u{001B}[31m" // red
         case .acceptEdits: colorCode = "\u{001B}[34m" // blue
-        case .auto, .dontAsk: return prompt           // default — no color needed
+        case .auto, .dontAsk: return text             // default — no color needed
         }
-        return colorCode + prompt + "\u{001B}[0m"
+        return colorCode + text + "\u{001B}[0m"
     }
 
     /// Write a message to stderr safely, without force-unwrapping.
