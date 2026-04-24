@@ -53,21 +53,41 @@ final class LinenoiseInputReader: InputReading, @unchecked Sendable {
     // MARK: - InputReading Conformance
 
     func readLine(prompt: String) -> String? {
+        // Linenoise uses prompt.count for cursor positioning, which breaks with
+        // ANSI escape codes (it counts invisible bytes, shifting the cursor right).
+        // Strip ANSI codes and pass only the visible text.
+        let visiblePrompt = stripANSI(prompt)
+
+        // Ensure cursor is at column 0 before linenoise takes over the terminal.
+        // Previous output (welcome screen, command results) may leave the cursor
+        // at a non-zero column because linenoise disables OPOST in raw mode,
+        // which prevents automatic \n→\r\n conversion.
+        FileHandle.standardOutput.write("\r".data(using: .utf8) ?? Data())
+
         do {
-            let line = try linenoise.getLine(prompt: prompt)
+            let line = try linenoise.getLine(prompt: visiblePrompt)
+            // Linenoise's editLine returns on Enter without emitting a newline,
+            // and raw mode disables OPOST (so \n won't become \r\n).
+            // Write explicit \r\n so subsequent output starts on a fresh line.
+            FileHandle.standardOutput.write("\r\n".data(using: .utf8) ?? Data())
             if !line.isEmpty {
                 linenoise.addHistory(line)
                 saveHistorySilently()
             }
             return line
         } catch LinenoiseError.CTRL_C {
-            // Ctrl+C: return empty string so REPLLoop ignores it and
-            // re-displays the prompt (its existing `guard !trimmed.isEmpty` logic).
+            FileHandle.standardOutput.write("\r\n".data(using: .utf8) ?? Data())
             return ""
         } catch {
-            // EOF (Ctrl+D) or any other error -- signal exit.
             return nil
         }
+    }
+
+    /// Strip all ANSI CSI escape sequences from a string.
+    private func stripANSI(_ text: String) -> String {
+        // Match ESC [ ... m (SGR sequences used for colors/styles)
+        let pattern = "\u{001B}\\[[0-9;]*m"
+        return text.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
     }
 
     // MARK: - Tab Completion

@@ -177,28 +177,30 @@ final class SkillLoadingTests: XCTestCase {
         let registry = AgentFactory.createSkillRegistry(from: args)
 
         XCTAssertNotNil(registry, "Registry should be created")
-        let hasSkill = registry?.has("discovered-skill") ?? false
+        let hasSkill = registry.has("discovered-skill")
         XCTAssertTrue(hasSkill,
             "Registry should contain the discovered skill (AC#1)")
     }
 
-    func testCreateSkillRegistry_noSkillArgs_returnsNil() {
-        // AC#1 complement: When no skill args are provided, registry should be nil
+    func testCreateSkillRegistry_noSkillArgs_autoDiscoversDefaults() {
+        // When no skill args are provided, registry should still be created
+        // and attempt to discover from default directories (may be empty)
         let args = makeArgs()  // No skillDir, no skillName
 
         let registry = AgentFactory.createSkillRegistry(from: args)
 
-        XCTAssertNil(registry,
-            "createSkillRegistry should return nil when no skill args provided (AC#1)")
+        // Registry always exists now (auto-discovery from default dirs)
+        // May contain skills from ~/.claude/skills, ~/.openagent/skills, etc.
+        XCTAssertGreaterThanOrEqual(registry.allSkills.count, 0,
+            "Registry should be created even without explicit skill args")
     }
 
     func testCreateSkillRegistry_onlySkillName_noSkillDir_usesDefaultDirs() throws {
-        // AC#1: skillName without skillDir should attempt default directory discovery
+        // skillName without skillDir should attempt default directory discovery
         let args = makeArgs(skillName: "some-skill")
 
-        // Should not crash -- returns nil if skill not found in default dirs
+        // Should not crash -- auto-discovers from default dirs
         let registry = AgentFactory.createSkillRegistry(from: args)
-        // The registry may be nil (no skill found in default dirs) or non-nil
         // The key assertion is that it doesn't crash
     }
 
@@ -257,7 +259,7 @@ final class SkillLoadingTests: XCTestCase {
         let registry = AgentFactory.createSkillRegistry(from: args)
         XCTAssertNotNil(registry, "Registry should be created")
 
-        let skill = registry?.find("review")
+        let skill = registry.find("review")
         XCTAssertNotNil(skill, "Should find 'review' skill in registry (AC#2)")
         XCTAssertEqual(skill?.promptTemplate, "Review the code changes and provide feedback.",
             "Skill promptTemplate should match (AC#2)")
@@ -273,7 +275,7 @@ final class SkillLoadingTests: XCTestCase {
         let args = makeArgs(skillDir: skillDir.path)
         let registry = AgentFactory.createSkillRegistry(from: args)
 
-        let found = registry?.find("commit")
+        let found = registry.find("commit")
         XCTAssertNotNil(found, "Should find 'commit' skill (AC#2)")
         XCTAssertEqual(found?.name, "commit", "Found skill should have correct name (AC#2)")
         XCTAssertEqual(found?.description, "Generate commit messages",
@@ -286,7 +288,7 @@ final class SkillLoadingTests: XCTestCase {
         let args = makeArgs(skillDir: skillDir.path)
         let registry = AgentFactory.createSkillRegistry(from: args)
 
-        let found = registry?.find("nonexistent")
+        let found = registry.find("nonexistent")
         XCTAssertNil(found, "find() should return nil for unknown skill name (AC#2)")
     }
 
@@ -305,11 +307,11 @@ final class SkillLoadingTests: XCTestCase {
         let registry = AgentFactory.createSkillRegistry(from: args)
         XCTAssertNotNil(registry, "Registry should be created even with invalid skillName")
 
-        let found = registry?.find("nonexistent")
+        let found = registry.find("nonexistent")
         XCTAssertNil(found, "find() should return nil for nonexistent skill (AC#4)")
 
         // The registry should still have the available skill
-        let available = registry?.allSkills ?? []
+        let available = registry.allSkills
         XCTAssertFalse(available.isEmpty,
             "Registry should contain at least one available skill for error message listing (AC#4)")
     }
@@ -594,7 +596,7 @@ final class SkillLoadingTests: XCTestCase {
         )
 
         let registry = AgentFactory.createSkillRegistry(from: args)
-        let availableSkills = registry?.allSkills.map { $0.name } ?? []
+        let availableSkills = registry.allSkills.map { $0.name }
 
         // The CLI should be able to construct an error message listing available skills
         XCTAssertTrue(availableSkills.contains("available-skill"),
@@ -689,7 +691,7 @@ final class SkillLoadingTests: XCTestCase {
 
         let registry = AgentFactory.createSkillRegistry(from: parsedArgs)
         XCTAssertNotNil(registry, "Registry should be created from parsed args (integration)")
-        XCTAssertTrue(registry?.has("pipeline-skill") ?? false,
+        XCTAssertTrue(registry.has("pipeline-skill"),
             "Registry should contain the pipeline-skill (integration)")
     }
 

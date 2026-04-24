@@ -316,7 +316,7 @@ struct REPLLoop {
             await handleMcp(parts: parts)
         default:
             // Unknown command
-            renderer.output.write("Unknown command: \(input). Type /help for available commands.\n")
+            renderer.output.write("Unknown command: \(input). Type /help for available commands.\r\n")
         }
         return false
     }
@@ -340,18 +340,18 @@ struct REPLLoop {
           /exit              Exit the REPL
           /quit              Exit the REPL
         """
-        renderer.output.write("\(help)\n")
+        renderer.output.write(help.replacingOccurrences(of: "\n", with: "\r\n") + "\r\n")
     }
 
     /// Print the list of loaded tools, sorted alphabetically.
     private func printTools() {
         if toolNames.isEmpty {
-            renderer.output.write("No tools loaded.\n")
+            renderer.output.write("No tools loaded.\r\n")
         } else {
             let sorted = toolNames.sorted()
-            renderer.output.write("Loaded tools (\(sorted.count)):\n")
+            renderer.output.write("Loaded tools (\(sorted.count)):\r\n")
             for name in sorted {
-                renderer.output.write("  \(name)\n")
+                renderer.output.write("  \(name)\r\n")
             }
         }
     }
@@ -359,18 +359,18 @@ struct REPLLoop {
     /// Print the list of loaded skills with name and description, sorted by name.
     private func printSkills() {
         guard let registry = skillRegistry else {
-            renderer.output.write("No skills loaded.\n")
+            renderer.output.write("No skills loaded.\r\n")
             return
         }
 
         let skills = registry.allSkills
         if skills.isEmpty {
-            renderer.output.write("No skills loaded.\n")
+            renderer.output.write("No skills loaded.\r\n")
         } else {
             let sorted = skills.sorted { $0.name < $1.name }
-            renderer.output.write("Available skills (\(sorted.count)):\n")
+            renderer.output.write("Available skills (\(sorted.count)):\r\n")
             for skill in sorted {
-                renderer.output.write("  \(skill.name): \(skill.description)\n")
+                renderer.output.write("  \(skill.name): \(skill.description)\r\n")
             }
         }
     }
@@ -382,7 +382,7 @@ struct REPLLoop {
         // No argument (input is trimmed before reaching here, so /model <spaces>
         // is indistinguishable from bare /model).
         guard parts.count > 1 else {
-            renderer.output.write("Usage: /model <model-name> (empty or missing model name)\n")
+            renderer.output.write("Usage: /model <model-name> (empty or missing model name)\r\n")
             return
         }
 
@@ -390,15 +390,15 @@ struct REPLLoop {
 
         // Whitespace-only argument
         guard !modelName.isEmpty else {
-            renderer.output.write("Error: Model name cannot be empty.\n")
+            renderer.output.write("Error: Model name cannot be empty.\r\n")
             return
         }
 
         do {
             try agentHolder.agent.switchModel(modelName)
-            renderer.output.write("Model switched to \(modelName)\n")
+            renderer.output.write("Model switched to \(modelName)\r\n")
         } catch {
-            renderer.output.write("Error: \(error.localizedDescription)\n")
+            renderer.output.write("Error: \(error.localizedDescription)\r\n")
         }
     }
 
@@ -407,7 +407,7 @@ struct REPLLoop {
     /// Handle the /mode <mode> command: dynamically switch the permission mode.
     private func handleMode(parts: [Substring]) {
         guard parts.count > 1, !parts[1].trimmingCharacters(in: .whitespaces).isEmpty else {
-            renderer.output.write("Usage: /mode <mode>\n")
+            renderer.output.write("Usage: /mode <mode>\r\n")
             return
         }
 
@@ -415,20 +415,20 @@ struct REPLLoop {
 
         guard let mode = PermissionMode(rawValue: modeName) else {
             let validModes = PermissionMode.allCases.map(\.rawValue).joined(separator: ", ")
-            renderer.output.write("Invalid mode '\(modeName)'. Valid modes: \(validModes)\n")
+            renderer.output.write("Invalid mode '\(modeName)'. Valid modes: \(validModes)\r\n")
             return
         }
 
         agentHolder.agent.setPermissionMode(mode)
         modeHolder.mode = mode
-        renderer.output.write("Permission mode switched to \(mode.rawValue)\n")
+        renderer.output.write("Permission mode switched to \(mode.rawValue)\r\n")
     }
 
     // MARK: - /cost command (Story 6.3)
 
     /// Handle the /cost command: display cumulative session cost and token usage.
     private func handleCost() {
-        renderer.output.write(String(format: "Session cost: $%.4f (input: %d tokens, output: %d tokens)\n",
+        renderer.output.write(String(format: "Session cost: $%.4f (input: %d tokens, output: %d tokens)\r\n",
             costTracker.cumulativeCostUsd,
             costTracker.cumulativeInputTokens,
             costTracker.cumulativeOutputTokens
@@ -441,7 +441,7 @@ struct REPLLoop {
     private func handleClear() {
         agentHolder.agent.clear()
         costTracker.reset()
-        renderer.output.write("Conversation cleared. Starting a new session.\n")
+        renderer.output.write("Conversation cleared. Starting a new session.\r\n")
     }
 
     // MARK: - /fork command (Story 7.5)
@@ -453,13 +453,13 @@ struct REPLLoop {
     private func handleFork() async {
         // AC#4: Verify SessionStore is available
         guard let store = sessionStore else {
-            renderer.output.write("No session storage available.\n")
+            renderer.output.write("No session storage available.\r\n")
             return
         }
 
         // AC#5: Verify current session exists
         guard let currentSessionId = agentHolder.agent.getSessionId() else {
-            renderer.output.write("No active session to fork.\n")
+            renderer.output.write("No active session to fork.\r\n")
             return
         }
 
@@ -467,19 +467,19 @@ struct REPLLoop {
         let forkedId: String
         do {
             guard let id = try await store.fork(sourceSessionId: currentSessionId) else {
-                renderer.output.write("Error: Source session not found.\n")
+                renderer.output.write("Error: Source session not found.\r\n")
                 return
             }
             forkedId = id
         } catch {
             // AC#6: Display error message, original session unaffected
-            renderer.output.write("Error forking session: \(error.localizedDescription)\n")
+            renderer.output.write("Error forking session: \(error.localizedDescription)\r\n")
             return
         }
 
         // Create a new Agent using the forked session ID
         guard let args = parsedArgs else {
-            renderer.output.write("Cannot fork: configuration not available.\n")
+            renderer.output.write("Cannot fork: configuration not available.\r\n")
             return
         }
 
@@ -493,17 +493,17 @@ struct REPLLoop {
             do {
                 try await agentHolder.agent.close()
             } catch {
-                renderer.output.write("Warning: failed to save current session (\(error.localizedDescription)).\n")
+                renderer.output.write("Warning: failed to save current session (\(error.localizedDescription)).\r\n")
             }
             // Switch to forked session
             agentHolder.agent = newAgent
             // AC#3: Display confirmation with short ID
             let shortId = String(forkedId.prefix(8))
-            renderer.output.write("Session forked. New session: \(shortId)...\n")
+            renderer.output.write("Session forked. New session: \(shortId)...\r\n")
         } catch {
             // AC#7: Clean up orphaned session if agent creation fails
             _ = try? await store.delete(sessionId: forkedId)
-            renderer.output.write("Error creating forked session: \(error.localizedDescription)\n")
+            renderer.output.write("Error creating forked session: \(error.localizedDescription)\r\n")
         }
     }
 
@@ -529,15 +529,15 @@ struct REPLLoop {
             await handleMcpStatus()
         case "reconnect":
             guard let name = subArgs, !name.isEmpty else {
-                renderer.output.write("Usage: /mcp reconnect <name>\n")
+                renderer.output.write("Usage: /mcp reconnect <name>\r\n")
                 return
             }
             await handleMcpReconnect(serverName: name)
         default:
             // AC#5: No subcommand or unknown subcommand shows help
-            renderer.output.write("MCP commands:\n")
-            renderer.output.write("  /mcp status              Show MCP server status\n")
-            renderer.output.write("  /mcp reconnect <name>    Reconnect a server\n")
+            renderer.output.write("MCP commands:\r\n")
+            renderer.output.write("  /mcp status              Show MCP server status\r\n")
+            renderer.output.write("  /mcp reconnect <name>    Reconnect a server\r\n")
         }
     }
 
@@ -545,10 +545,10 @@ struct REPLLoop {
     private func handleMcpStatus() async {
         let statuses = await agentHolder.agent.mcpServerStatus()
         if statuses.isEmpty {
-            renderer.output.write("No MCP servers configured.\n")
+            renderer.output.write("No MCP servers configured.\r\n")
             return
         }
-        renderer.output.write("MCP Servers:\n")
+        renderer.output.write("MCP Servers:\r\n")
         for (name, status) in statuses.sorted(by: { $0.key < $1.key }) {
             let toolCount = status.tools.count
             renderer.output.write("  \(name): \(status.status.rawValue)")
@@ -561,7 +561,7 @@ struct REPLLoop {
             if let error = status.error {
                 renderer.output.write("\n    Error: \(error)")
             }
-            renderer.output.write("\n")
+            renderer.output.write("\r\n")
         }
     }
 
@@ -569,11 +569,11 @@ struct REPLLoop {
     private func handleMcpReconnect(serverName: String) async {
         do {
             try await agentHolder.agent.reconnectMcpServer(name: serverName)
-            renderer.output.write("Reconnected \(serverName).\n")
+            renderer.output.write("Reconnected \(serverName).\r\n")
         } catch is MCPClientManagerError {
-            renderer.output.write("Server not found: \(serverName)\n")
+            renderer.output.write("Server not found: \(serverName)\r\n")
         } catch {
-            renderer.output.write("Error reconnecting \(serverName): \(error.localizedDescription)\n")
+            renderer.output.write("Error reconnecting \(serverName): \(error.localizedDescription)\r\n")
         }
     }
 
@@ -582,7 +582,7 @@ struct REPLLoop {
     /// Handle the /sessions command: list saved sessions.
     private func handleSessions() async {
         guard let store = sessionStore else {
-            renderer.output.write("No session storage available.\n")
+            renderer.output.write("No session storage available.\r\n")
             return
         }
 
@@ -590,11 +590,11 @@ struct REPLLoop {
             let sessions = try await store.list()
 
             if sessions.isEmpty {
-                renderer.output.write("No saved sessions.\n")
+                renderer.output.write("No saved sessions.\r\n")
                 return
             }
 
-            renderer.output.write("Saved sessions (\(sessions.count)):\n")
+            renderer.output.write("Saved sessions (\(sessions.count)):\r\n")
             for session in sessions {
                 let shortId = String(session.id.prefix(8))
                 let timeStr = formatRelativeTime(session.updatedAt)
@@ -604,10 +604,10 @@ struct REPLLoop {
                 } else {
                     preview = await extractFirstPrompt(store: store, sessionId: session.id, messageCount: session.messageCount) ?? "(no preview)"
                 }
-                renderer.output.write("  \(shortId)  \(timeStr)  \(session.messageCount) msgs  \"\(preview)\"\n")
+                renderer.output.write("  \(shortId)  \(timeStr)  \(session.messageCount) msgs  \"\(preview)\"\r\n")
             }
         } catch {
-            renderer.output.write("Error listing sessions: \(error.localizedDescription)\n")
+            renderer.output.write("Error listing sessions: \(error.localizedDescription)\r\n")
         }
     }
 
@@ -637,13 +637,13 @@ struct REPLLoop {
     /// Handle the /resume <id> command: resume a saved session.
     private func handleResume(parts: [Substring]) async {
         guard let store = sessionStore else {
-            renderer.output.write("No session storage available.\n")
+            renderer.output.write("No session storage available.\r\n")
             return
         }
 
         // Check for missing ID argument
         guard parts.count > 1, !parts[1].isEmpty else {
-            renderer.output.write("Usage: /resume <session-id>\n")
+            renderer.output.write("Usage: /resume <session-id>\r\n")
             return
         }
 
@@ -657,22 +657,22 @@ struct REPLLoop {
             } else {
                 let matches = try await store.list().filter { $0.id.hasPrefix(inputId) }
                 if matches.isEmpty {
-                    renderer.output.write("Session not found: \(inputId)\n")
+                    renderer.output.write("Session not found: \(inputId)\r\n")
                     return
                 } else if matches.count > 1 {
-                    renderer.output.write("Ambiguous ID '\(inputId)' matches \(matches.count) sessions. Use a longer prefix.\n")
+                    renderer.output.write("Ambiguous ID '\(inputId)' matches \(matches.count) sessions. Use a longer prefix.\r\n")
                     return
                 }
                 sessionId = matches[0].id
             }
         } catch {
-            renderer.output.write("Error loading session: \(error.localizedDescription)\n")
+            renderer.output.write("Error loading session: \(error.localizedDescription)\r\n")
             return
         }
 
         // Create a new Agent with the target sessionId using the stored ParsedArgs
         guard let args = parsedArgs else {
-            renderer.output.write("Cannot resume session: configuration not available.\n")
+            renderer.output.write("Cannot resume session: configuration not available.\r\n")
             return
         }
 
@@ -685,14 +685,14 @@ struct REPLLoop {
             do {
                 try await agentHolder.agent.close()
             } catch {
-                renderer.output.write("Warning: failed to save current session (\(error.localizedDescription)). Session history may not be preserved.\n")
+                renderer.output.write("Warning: failed to save current session (\(error.localizedDescription)). Session history may not be preserved.\r\n")
             }
             agentHolder.agent = newAgent
 
             let shortId = String(sessionId.prefix(8))
-            renderer.output.write("Resumed session \(shortId)... (session history loaded)\n")
+            renderer.output.write("Resumed session \(shortId)... (session history loaded)\r\n")
         } catch {
-            renderer.output.write("Error creating resumed session: \(error.localizedDescription)\n")
+            renderer.output.write("Error creating resumed session: \(error.localizedDescription)\r\n")
         }
     }
 

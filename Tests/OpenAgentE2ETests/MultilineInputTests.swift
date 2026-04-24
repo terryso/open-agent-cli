@@ -20,36 +20,6 @@ import OpenAgentSDK
 
 // MARK: - Multiline Input Tests
 
-// MARK: - SignalingMockInputReader
-
-/// A mock input reader that sets `SignalHandler.setTestFlags(sigint: true)` when
-/// returning a specific line index.  Used to simulate Ctrl+C (which delivers a
-/// SIGINT) while still returning an empty string from `readLine`.
-final class SignalingMockInputReader: InputReading, @unchecked Sendable {
-    var lines: [String?]
-    var callCount = 0
-    var promptHistory: [String] = []
-    let signalOnIndex: Int
-
-    init(_ lines: [String?], signalOnIndex: Int) {
-        self.lines = lines
-        self.signalOnIndex = signalOnIndex
-    }
-
-    func readLine(prompt: String) -> String? {
-        promptHistory.append(prompt)
-        guard callCount < lines.count else { return nil }
-        let line = lines[callCount]
-        if callCount == signalOnIndex {
-            SignalHandler.setTestFlags(sigint: true)
-        }
-        callCount += 1
-        return line
-    }
-}
-
-// MARK: - Multiline Input Tests
-
 final class MultilineInputTests: XCTestCase {
 
     // MARK: - Helpers

@@ -66,7 +66,7 @@ enum CLI {
         // Must be called before any interactive mode starts.
         SignalHandler.register()
 
-        // Build SkillRegistry if skill-related args are present (computed once, reused throughout)
+        // Build SkillRegistry — always scans default skill directories
         let skillRegistry = AgentFactory.createSkillRegistry(from: args)
 
         // Dispatch based on mode
@@ -86,25 +86,13 @@ enum CLI {
 
         // Handle --skill auto-invocation
         if let skillName = args.skillName {
-            let noSkillDirsMessage = "No skill directories configured. Use --skill-dir <path> to load skills.\n"
-
-            // When no --skill-dir was provided, the user hasn't configured any skill directories.
-            // Even if the SDK discovers default skill directories, showing "Skill not found: X"
-            // with a long list of unrelated skills is confusing. Instead, tell the user to
-            // configure skill directories explicitly.
-            if args.skillDir == nil {
-                ANSI.writeToStderr(noSkillDirsMessage)
-                Foundation.exit(1)
-            }
-
-            guard let registry = skillRegistry else {
-                ANSI.writeToStderr(noSkillDirsMessage)
-                Foundation.exit(1)
-            }
-
-            guard let skill = registry.find(skillName) else {
-                let available = registry.allSkills.map { $0.name }.sorted().joined(separator: ", ")
-                ANSI.writeToStderr("Skill not found: \(skillName)\nAvailable skills: \(available)\n")
+            guard let skill = skillRegistry.find(skillName) else {
+                let available = skillRegistry.allSkills.map { $0.name }.sorted().joined(separator: ", ")
+                if available.isEmpty {
+                    ANSI.writeToStderr("Skill not found: \(skillName)\nNo skills discovered. Checked standard directories (~/.openagent/skills, ~/.claude/skills, etc.).\n")
+                } else {
+                    ANSI.writeToStderr("Skill not found: \(skillName)\nAvailable skills: \(available)\n")
+                }
                 Foundation.exit(1)
             }
 
@@ -189,7 +177,7 @@ enum CLI {
 
             // Show restore hint when auto-restore is active
             if !args.noRestore && args.sessionId == nil {
-                renderer.output.write("[Restoring last session...]\n")
+                renderer.output.write("\r[Restoring last session...]\r\n")
             }
 
             // Extract tool names for /tools command display and welcome screen
@@ -197,7 +185,7 @@ enum CLI {
 
             // Welcome screen (Story 9.1): show config summary before first prompt
             if !args.quiet && args.output != "json" {
-                let welcomeLine = "openagent \(CLIVersion.current) | model: \(args.model) | tools: \(toolNames.count) | mode: \(args.mode)\n"
+                let welcomeLine = "openagent \(CLIVersion.current) | model: \(args.model) | tools: \(toolNames.count) | mode: \(args.mode)\r\n"
                 renderer.output.write(ANSI.dim(welcomeLine))
             }
 

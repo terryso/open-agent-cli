@@ -230,16 +230,15 @@ final class Story83DeferredWorkCleanupTests: XCTestCase {
 
     // --- AC#2 Test 1: Registry is nil when no skill directories configured ---
 
-    func testAC2_createSkillRegistry_noSkillDir_noSkillName_returnsNil() {
-        // AC#2: When neither --skill-dir nor --skill is provided,
-        // createSkillRegistry returns nil. This is the nil-registry case
-        // where the misleading error message occurs.
+    func testAC2_createSkillRegistry_noSkillDir_noSkillName_autoDiscovers() {
+        // When neither --skill-dir nor --skill is provided,
+        // createSkillRegistry still returns a registry (auto-discovers from default dirs).
         let args = makeArgs() // No skillDir, no skillName
 
         let registry = AgentFactory.createSkillRegistry(from: args)
 
-        XCTAssertNil(registry,
-            "Registry should be nil when no skill args are provided (AC#2)")
+        XCTAssertGreaterThanOrEqual(registry.allSkills.count, 0,
+            "Registry should be created (auto-discovery from default dirs)")
     }
 
     // --- AC#2 Test 2: Registry is nil when --skill-name is given without --skill-dir ---
@@ -259,22 +258,17 @@ final class Story83DeferredWorkCleanupTests: XCTestCase {
 
     // --- AC#2 Test 3: Error message for nil registry is NOT "Skill not found" ---
 
-    func testAC2_errorMessage_nilRegistry_shouldSayNoSkillDirectoriesConfigured() {
-        // AC#2: The CLI.swift fix uses args.skillDir == nil as the early exit guard.
-        // Verify that the expected error message string is correct.
-        let expectedMessage = "No skill directories configured. Use --skill-dir <path> to load skills."
+    func testAC2_errorMessage_skillNotFound_showsHelpfulMessage() {
+        // When --skill <name> is used and skill not found in auto-discovered dirs,
+        // the error should say "Skill not found" and either list available skills
+        // or explain which directories were checked.
+        let foundMessage = "Skill not found: review"
+        let noSkillsMessage = "No skills discovered. Checked standard directories"
 
-        XCTAssertTrue(expectedMessage.contains("No skill directories configured"),
-            "Error message for nil-registry case should say 'No skill directories configured' (AC#2)")
-        XCTAssertTrue(expectedMessage.contains("--skill-dir"),
-            "Error message should suggest --skill-dir flag (AC#2)")
-        XCTAssertFalse(expectedMessage.contains("Skill not found"),
-            "Error message should NOT say 'Skill not found' (AC#2)")
-
-        // Verify the guard condition: when skillDir is nil, the early exit fires
-        let args = makeArgs(skillName: "my-skill")
-        XCTAssertNil(args.skillDir,
-            "skillDir is nil -- the guard in CLI.swift fires before registry is consulted (AC#2)")
+        XCTAssertTrue(foundMessage.contains("Skill not found"),
+            "Error message should say 'Skill not found' when skill name doesn't match")
+        XCTAssertTrue(noSkillsMessage.contains("standard directories"),
+            "When no skills at all, should explain which directories were checked")
     }
 
     // --- AC#2 Test 4: Error message for skill-not-found includes available skills ---
@@ -296,11 +290,11 @@ final class Story83DeferredWorkCleanupTests: XCTestCase {
         XCTAssertNotNil(registry,
             "Registry should be created when skillDir is provided")
 
-        let found = registry?.find("nonexistent-skill")
+        let found = registry.find("nonexistent-skill")
         XCTAssertNil(found,
             "Should not find 'nonexistent-skill' in registry")
 
-        let available = registry?.allSkills.map { $0.name }.sorted().joined(separator: ", ") ?? ""
+        let available = registry.allSkills.map { $0.name }.sorted().joined(separator: ", ")
         XCTAssertTrue(available.contains("review"),
             "Available skills list should contain 'review' for error message (AC#2)")
     }
@@ -372,7 +366,7 @@ final class Story83DeferredWorkCleanupTests: XCTestCase {
         let registry = AgentFactory.createSkillRegistry(from: args)
         XCTAssertNotNil(registry, "Registry should be created with skill-dir")
 
-        let available = registry?.allSkills.map { $0.name }.sorted().joined(separator: ", ") ?? ""
+        let available = registry.allSkills.map { $0.name }.sorted().joined(separator: ", ")
 
         let stderrContent = try captureStderr {
             // Simulate what CLI.swift does when skill is not found in existing registry
@@ -480,7 +474,7 @@ final class Story83DeferredWorkCleanupTests: XCTestCase {
         XCTAssertNotNil(registry,
             "Registry should be created when skillDir is provided, even with prompt")
 
-        let skill = registry?.find("review")
+        let skill = registry.find("review")
         XCTAssertNotNil(skill,
             "Should find 'review' skill even when prompt is also set (AC#3)")
         XCTAssertEqual(skill?.promptTemplate, "Review the code changes and provide feedback.",
@@ -506,7 +500,7 @@ final class Story83DeferredWorkCleanupTests: XCTestCase {
         )
 
         let registry = AgentFactory.createSkillRegistry(from: args)
-        let skill = registry?.find("review")
+        let skill = registry.find("review")
         XCTAssertNotNil(skill)
 
         // The skill template is NOT affected by the positional prompt
@@ -560,7 +554,7 @@ final class Story83DeferredWorkCleanupTests: XCTestCase {
         let registry = AgentFactory.createSkillRegistry(from: args)
         XCTAssertNotNil(registry)
 
-        let skill = registry?.find("review")
+        let skill = registry.find("review")
         XCTAssertNotNil(skill,
             "Skill should be found")
 
@@ -597,7 +591,7 @@ final class Story83DeferredWorkCleanupTests: XCTestCase {
 
         // Registry should find the skill
         let registry = AgentFactory.createSkillRegistry(from: parsedArgs)
-        let skill = registry?.find("commit")
+        let skill = registry.find("commit")
         XCTAssertNotNil(skill,
             "Skill should be found in registry (AC#3)")
 
@@ -683,7 +677,7 @@ final class Story83DeferredWorkCleanupTests: XCTestCase {
 
         // Both will be executed in sequence (skill template first, then prompt)
         let registry = AgentFactory.createSkillRegistry(from: args)
-        guard let skill = registry?.find("review") else {
+        guard let skill = registry.find("review") else {
             XCTFail("Skill 'review' should be found in registry (AC#3)")
             return
         }

@@ -41,15 +41,34 @@ enum AgentFactory {
     ///
     /// - Parameter args: The fully resolved CLI arguments.
     /// - Returns: A populated SkillRegistry, or nil if no skill args present.
-    static func createSkillRegistry(from args: ParsedArgs) -> SkillRegistry? {
-        guard args.skillDir != nil || args.skillName != nil else { return nil }
-
+    static func createSkillRegistry(from args: ParsedArgs) -> SkillRegistry {
         let registry = SkillRegistry()
-        let dirs: [String]? = args.skillDir.map { [$0] }
-        // Discover all skills from the directory (don't filter by skillName)
-        // so that error messages can list available skills
-        registry.registerDiscoveredSkills(from: dirs, skillNames: nil)
+
+        if let explicitDir = args.skillDir {
+            // Explicit --skill-dir: only scan that directory
+            registry.registerDiscoveredSkills(from: [explicitDir], skillNames: nil)
+        } else {
+            // Auto-discover from all standard directories (SDK defaults + openagent-specific)
+            registry.registerDiscoveredSkills(from: defaultSkillDirectories(), skillNames: nil)
+        }
+
         return registry
+    }
+
+    /// Scans: SDK defaults (~/.config/agents/skills, ~/.agents/skills, ~/.claude/skills,
+    /// $PWD/.agents/skills, $PWD/.claude/skills) plus ~/.openagent/skills and $PWD/.openagent/skills.
+    /// Same-name skills across directories are deduplicated by the SDK (last-wins).
+    private static func defaultSkillDirectories() -> [String] {
+        var dirs = SkillLoader.defaultSkillDirectories()
+
+        if let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory() as String? {
+            dirs.append(home + "/.openagent/skills")
+        }
+
+        let cwd = FileManager.default.currentDirectoryPath
+        dirs.append(cwd + "/.openagent/skills")
+
+        return dirs
     }
 
     /// Create an SDK Agent from parsed CLI arguments.
@@ -151,7 +170,7 @@ enum AgentFactory {
     ///
     /// Single source of truth for tool loading — used by both `createAgent`
     /// and `CLI` (for `/tools` display).
-    static func computeToolPool(from args: ParsedArgs, skillRegistry: SkillRegistry? = nil) -> [ToolProtocol] {
+    static func computeToolPool(from args: ParsedArgs, skillRegistry: SkillRegistry = SkillRegistry()) -> [ToolProtocol] {
         let baseTools = mapToolTier(args.tools)
 
         // Build custom tools array: include Agent tool, Skill tool, and user-defined custom tools
@@ -164,8 +183,8 @@ enum AgentFactory {
         }
 
         // Include SkillTool when skill-related args are present
-        if let registry = skillRegistry {
-            customTools = (customTools ?? []) + [createSkillTool(registry: registry)]
+        if !skillRegistry.allSkills.isEmpty {
+            customTools = (customTools ?? []) + [createSkillTool(registry: skillRegistry)]
         }
 
         // Include user-defined custom tools from config file (Story 7.7)
