@@ -398,4 +398,263 @@ final class MarkdownRendererTests: XCTestCase {
         XCTAssertTrue(result.contains("Hello"),
             "Markdown rendering should preserve text regardless of quiet mode")
     }
+
+    // MARK: - Story 10.2 ATDD: Markdown Table & Block Element Rendering
+    //
+    // ATDD RED PHASE: These tests define the EXPECTED behavior for Story 10.2.
+    // They WILL FAIL until MarkdownRenderer.swift is updated with table rendering,
+    // blockquote rendering, horizontal rule rendering, link rendering, and
+    // heading decoration lines (AC#1-#5).
+    //
+    // Acceptance Criteria Coverage:
+    //   AC#1: Table rendering with box-drawing characters, bold header, column alignment
+    //   AC#2: Blockquote rendering with grey │ prefix
+    //   AC#3: Horizontal rule rendering with ─ characters
+    //   AC#4: Link rendering [text](url) → underlined text, URL hidden
+    //   AC#5: H1/H2 heading decoration lines (═ and ─)
+
+    // MARK: - AC#1: Table Rendering (6 tests)
+
+    func testTable_simpleTable_boxDrawingBorders() {
+        // Given a Markdown table with header, separator, and data rows
+        let input = "| Name | Status | Count |\n|------|--------|-------|\n| foo  | active | 3     |\n| bar  | idle   | 0     |"
+        let result = MarkdownRenderer.render(input)
+
+        // Then box-drawing border characters are present
+        XCTAssertTrue(result.contains("\u{250C}"), "Table should have top-left corner ┌")
+        XCTAssertTrue(result.contains("\u{2510}"), "Table should have top-right corner ┐")
+        XCTAssertTrue(result.contains("\u{2514}"), "Table should have bottom-left corner └")
+        XCTAssertTrue(result.contains("\u{2518}"), "Table should have bottom-right corner ┘")
+        XCTAssertTrue(result.contains("\u{251C}"), "Table should have left junction ├")
+        XCTAssertTrue(result.contains("\u{2524}"), "Table should have right junction ┤")
+    }
+
+    func testTable_simpleTable_columnAlignment() {
+        // Given a Markdown table
+        let input = "| Name | Status | Count |\n|------|--------|-------|\n| foo  | active | 3     |\n| bar  | idle   | 0     |"
+        let result = MarkdownRenderer.render(input)
+
+        // Then column separators (│ and ┼) appear
+        XCTAssertTrue(result.contains("\u{2502}"), "Table should have vertical bar │ between columns")
+
+        // And separator row junctions (┼) should appear for header/data separator
+        XCTAssertTrue(result.contains("\u{253C}"), "Table should have cross junction ┼ in header separator")
+
+        // And all cell content is preserved
+        XCTAssertTrue(result.contains("Name"), "Header 'Name' should be preserved")
+        XCTAssertTrue(result.contains("Status"), "Header 'Status' should be preserved")
+        XCTAssertTrue(result.contains("Count"), "Header 'Count' should be preserved")
+        XCTAssertTrue(result.contains("foo"), "Data cell 'foo' should be preserved")
+        XCTAssertTrue(result.contains("bar"), "Data cell 'bar' should be preserved")
+        XCTAssertTrue(result.contains("active"), "Data cell 'active' should be preserved")
+        XCTAssertTrue(result.contains("idle"), "Data cell 'idle' should be preserved")
+    }
+
+    func testTable_headerBold() {
+        // Given a Markdown table
+        let input = "| Name | Status |\n|------|--------|\n| foo  | active |"
+        let result = MarkdownRenderer.render(input)
+
+        // Then header row should contain ANSI bold escape codes
+        let boldEscape = "\u{001B}[1m"
+        XCTAssertTrue(result.contains(boldEscape),
+            "Table header row should use ANSI bold styling, got: \(result.debugDescription)")
+    }
+
+    func testTable_unevenColumns_noCrash() {
+        // Given a table where data rows have fewer columns than the header
+        let input = "| A | B | C |\n|---|---|---|\n| 1 |"
+        let result = MarkdownRenderer.render(input)
+
+        // Then rendering does not crash and content is present
+        XCTAssertTrue(result.contains("A"), "Header cell A should be preserved")
+        XCTAssertTrue(result.contains("1"), "Data cell 1 should be preserved")
+    }
+
+    func testTable_wideCell_truncation() {
+        // Given a table with a cell that would be very wide
+        let longContent = String(repeating: "X", count: 200)
+        let input = "| Short | \(longContent) |\n|-------|--------|\n| a     | b      |"
+        let result = MarkdownRenderer.render(input)
+
+        // Then the table renders without crash and shows truncation marker
+        XCTAssertTrue(result.contains("Short"), "Short header should be preserved")
+        // The long content should either be truncated (contains "...") or present
+        XCTAssertTrue(result.contains("...") || result.contains("X"),
+            "Wide cells should be truncated with ... or otherwise handled")
+    }
+
+    func testTable_headerOnly_noDataRows() {
+        // Given a table with only header and separator, no data rows
+        let input = "| Col1 | Col2 |\n|------|------|"
+        let result = MarkdownRenderer.render(input)
+
+        // Then the table renders (at minimum top border + header)
+        XCTAssertTrue(result.contains("\u{250C}") || result.contains("\u{2502}"),
+            "Header-only table should still render box-drawing characters")
+        XCTAssertTrue(result.contains("Col1"), "Header Col1 should be preserved")
+        XCTAssertTrue(result.contains("Col2"), "Header Col2 should be preserved")
+    }
+
+    // MARK: - AC#2: Blockquote Rendering (2 tests)
+
+    func testBlockquote_singleLine() {
+        // Given a single-line blockquote
+        let input = "> This is a quote"
+        let result = MarkdownRenderer.render(input)
+
+        // Then the output contains the │ prefix
+        XCTAssertTrue(result.contains("\u{2502}"),
+            "Blockquote should render with │ prefix, got: \(result.debugDescription)")
+        XCTAssertTrue(result.contains("This is a quote"),
+            "Blockquote text should be preserved")
+        // The raw "> " prefix should NOT appear
+        XCTAssertFalse(result.contains("> This is a quote"),
+            "Raw '> ' prefix should be replaced with │")
+    }
+
+    func testBlockquote_multiLine() {
+        // Given a multi-line blockquote
+        let input = "> This is a quote\n> spanning multiple lines"
+        let result = MarkdownRenderer.render(input)
+
+        // Then each line has the │ prefix
+        let lines = result.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        for line in lines {
+            XCTAssertTrue(line.contains("\u{2502}"),
+                "Each blockquote line should contain │, got: \(line)")
+        }
+        XCTAssertTrue(result.contains("This is a quote"), "First line text preserved")
+        XCTAssertTrue(result.contains("spanning multiple lines"), "Second line text preserved")
+    }
+
+    // MARK: - AC#3: Horizontal Rule Rendering (3 tests)
+
+    func testHorizontalRule_dash() {
+        // Given a horizontal rule with dashes
+        let input = "---"
+        let result = MarkdownRenderer.render(input)
+
+        // Then output contains ─ (box-drawing horizontal line) characters
+        XCTAssertTrue(result.contains("\u{2500}"),
+            "--- should render as ─ characters, got: \(result.debugDescription)")
+        // Should NOT contain raw "---"
+        XCTAssertFalse(result.contains("---"),
+            "Raw --- should be replaced with ─ characters")
+    }
+
+    func testHorizontalRule_asterisks() {
+        // Given a horizontal rule with asterisks
+        let input = "***"
+        let result = MarkdownRenderer.render(input)
+
+        XCTAssertTrue(result.contains("\u{2500}"),
+            "*** should render as ─ characters, got: \(result.debugDescription)")
+    }
+
+    func testHorizontalRule_underscores() {
+        // Given a horizontal rule with underscores
+        let input = "___"
+        let result = MarkdownRenderer.render(input)
+
+        XCTAssertTrue(result.contains("\u{2500}"),
+            "___ should render as ─ characters, got: \(result.debugDescription)")
+    }
+
+    // MARK: - AC#4: Link Rendering (2 tests)
+
+    func testLink_inline_rendersAsUnderlinedText() {
+        // Given inline link syntax [text](url)
+        let input = "Visit [OpenAI](https://openai.com) for more info"
+        let result = MarkdownRenderer.render(input)
+
+        // Then the text "OpenAI" is present with underline ANSI styling
+        let underlineEscape = "\u{001B}[4m"
+        XCTAssertTrue(result.contains(underlineEscape),
+            "Link text should have ANSI underline styling, got: \(result.debugDescription)")
+        XCTAssertTrue(result.contains("OpenAI"),
+            "Link text 'OpenAI' should be preserved")
+        // URL should NOT be visible in output
+        XCTAssertFalse(result.contains("https://openai.com"),
+            "URL should not be displayed in rendered output")
+        // Raw markdown syntax should not appear
+        XCTAssertFalse(result.contains("[OpenAI](https://openai.com)"),
+            "Raw link markdown should not appear in output")
+    }
+
+    func testLink_multipleLinks() {
+        // Given text with multiple links
+        let input = "Check [foo](http://foo.com) and [bar](http://bar.com)"
+        let result = MarkdownRenderer.render(input)
+
+        let underlineEscape = "\u{001B}[4m"
+        XCTAssertTrue(result.contains("foo"), "First link text preserved")
+        XCTAssertTrue(result.contains("bar"), "Second link text preserved")
+        XCTAssertFalse(result.contains("http://foo.com"), "First URL hidden")
+        XCTAssertFalse(result.contains("http://bar.com"), "Second URL hidden")
+
+        // Should have at least 2 underline sequences (one per link)
+        let underlineCount = result.components(separatedBy: underlineEscape).count - 1
+        XCTAssertTrue(underlineCount >= 2,
+            "Should have underline styling for each link, found \(underlineCount)")
+    }
+
+    // MARK: - AC#5: Heading Decoration (3 tests)
+
+    func testHeading_h1_hasDoubleLineDecoration() {
+        // Given an H1 heading
+        let input = "# Title"
+        let result = MarkdownRenderer.render(input)
+
+        // Then output contains bold title
+        let boldEscape = "\u{001B}[1m"
+        XCTAssertTrue(result.contains(boldEscape),
+            "H1 heading should be bold")
+        XCTAssertTrue(result.contains("Title"),
+            "Title text should be preserved")
+
+        // And a decoration line of ═ characters below
+        XCTAssertTrue(result.contains("\u{2550}"),
+            "H1 heading should have ═ decoration line, got: \(result.debugDescription)")
+    }
+
+    func testHeading_h2_hasSingleLineDecoration() {
+        // Given an H2 heading
+        let input = "## Section"
+        let result = MarkdownRenderer.render(input)
+
+        // Then output contains bold title
+        let boldEscape = "\u{001B}[1m"
+        XCTAssertTrue(result.contains(boldEscape),
+            "H2 heading should be bold")
+        XCTAssertTrue(result.contains("Section"),
+            "Section text should be preserved")
+
+        // And a decoration line of ─ characters below
+        XCTAssertTrue(result.contains("\u{2500}"),
+            "H2 heading should have ─ decoration line, got: \(result.debugDescription)")
+        // Should NOT have ═ (that's H1 only)
+        XCTAssertFalse(result.contains("\u{2550}"),
+            "H2 heading should NOT have ═ decoration (that is H1 only)")
+    }
+
+    func testHeading_h3_through_h6_noDecoration() {
+        // Given H3-H6 headings, they should only be bold without decoration lines
+        for level in 3...6 {
+            let hashes = String(repeating: "#", count: level)
+            let input = "\(hashes) Level \(level)"
+            let result = MarkdownRenderer.render(input)
+
+            let boldEscape = "\u{001B}[1m"
+            XCTAssertTrue(result.contains(boldEscape),
+                "H\(level) should be bold")
+            XCTAssertTrue(result.contains("Level \(level)"),
+                "H\(level) text preserved")
+
+            // Should NOT have ═ or standalone ─ decoration lines
+            // (Note: ─ may appear in other contexts, so we check ═ specifically)
+            XCTAssertFalse(result.contains("\u{2550}"),
+                "H\(level) should NOT have ═ decoration line")
+        }
+    }
 }

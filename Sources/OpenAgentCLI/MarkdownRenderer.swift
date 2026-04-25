@@ -204,8 +204,26 @@ enum MarkdownRenderer {
             return renderUnclosedCodeBlock(block)
         }
 
+        let lines = trimmed.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+
+        // Table block: all lines match |...| pattern (at least 2 lines)
+        let tableLines = lines.filter { isTableLine($0) }
+        if tableLines.count >= 2 && tableLines.count == lines.count {
+            return renderTable(tableLines, terminalWidth: terminalWidth)
+        }
+
+        // Blockquote block: all lines start with >
+        let blockquoteLines = lines.filter { isBlockquoteLine($0) }
+        if !lines.isEmpty && blockquoteLines.count == lines.count {
+            return renderBlockquote(lines)
+        }
+
+        // Horizontal rule: single line of only -, *, or _ characters (no | present)
+        if isHorizontalRule(trimmed) {
+            return renderHorizontalRule(terminalWidth: terminalWidth)
+        }
+
         // Check if all lines are list items (unordered or ordered)
-        let lines = trimmed.components(separatedBy: "\n").filter { !$0.isEmpty }
         let allListItems = !lines.isEmpty && lines.allSatisfy { !isListLine($0).isEmpty }
         if allListItems {
             return renderListBlock(lines, terminalWidth: terminalWidth)
@@ -292,24 +310,28 @@ enum MarkdownRenderer {
 
     /// Render a heading with ANSI bold styling.
     ///
-    /// Higher-level headings (fewer #) are just bold.
-    /// All heading levels use bold; H1-H2 may include additional visual weight.
+    /// H1: bold + ═ decoration line
+    /// H2: bold + ─ decoration line
+    /// H3-H6: bold only
     private static func renderHeading(_ line: String, level: Int) -> String {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         let hashCount = level
         let startIndex = trimmed.index(trimmed.startIndex, offsetBy: hashCount)
-        let title = trimmed[startIndex...].trimmingCharacters(in: .whitespaces)
+        let title = String(trimmed[startIndex...].trimmingCharacters(in: .whitespaces))
 
-        if level <= 2 {
-            // H1 and H2: bold + underline visual separator for H1
-            let boldTitle = ANSI.bold(title)
-            if level == 1 {
-                return boldTitle
-            }
-            return boldTitle
+        let boldTitle = ANSI.bold(title)
+
+        if level == 1 {
+            let decoration = String(repeating: "\u{2550}", count: displayWidth(title))
+            return boldTitle + "\n" + decoration
         }
 
-        return ANSI.bold(title)
+        if level == 2 {
+            let decoration = String(repeating: "\u{2500}", count: displayWidth(title))
+            return boldTitle + "\n" + decoration
+        }
+
+        return boldTitle
     }
 
     // MARK: - Lists
@@ -389,7 +411,7 @@ enum MarkdownRenderer {
 
     // MARK: - Inline Formatting
 
-    /// Apply inline Markdown formatting: **bold** and `code`.
+    /// Apply inline Markdown formatting: **bold**, `code`, and [link](url).
     static func renderInline(_ text: String) -> String {
         var result = text
 
@@ -401,6 +423,49 @@ enum MarkdownRenderer {
         // Inline code: `text`
         result = replaceInlineMarker(result, delimiter: "`") { content in
             ANSI.cyan(content)
+        }
+
+        // Inline link: [text](url) → underlined text (URL hidden)
+        result = replaceInlineLinks(result)
+
+        return result
+    }
+
+    /// Replace `[text](url)` patterns with underlined text only.
+    private static func replaceInlineLinks(_ text: String) -> String {
+        var result = text
+        var searchStart = result.startIndex
+
+        while searchStart < result.endIndex {
+            // Find opening [ from searchStart
+            guard let openBracket = result[searchStart...].firstIndex(of: "[") else { break }
+
+            // Find closing ] after [
+            let afterOpen = result.index(after: openBracket)
+            guard afterOpen < result.endIndex,
+                  let closeBracket = result[afterOpen...].firstIndex(of: "]") else { break }
+
+            // Check for ( immediately after ]
+            let afterClose = result.index(after: closeBracket)
+            guard afterClose < result.endIndex && result[afterClose] == "(" else {
+                searchStart = result.index(after: openBracket)
+                continue
+            }
+
+            // Find closing ) after (
+            let afterParen = result.index(after: afterClose)
+            guard afterParen < result.endIndex,
+                  let closeParen = result[afterParen...].firstIndex(of: ")") else { break }
+
+            // Extract link text (between [ and ])
+            let linkText = String(result[result.index(after: openBracket)..<closeBracket])
+
+            // Replace [text](url) with underlined text
+            let replacement = ANSI.underline(linkText)
+            result.replaceSubrange(openBracket...closeParen, with: replacement)
+
+            // Move search start past the replacement
+            searchStart = result.index(openBracket, offsetBy: replacement.count, limitedBy: result.endIndex) ?? result.endIndex
         }
 
         return result
@@ -426,5 +491,259 @@ enum MarkdownRenderer {
             result.replaceSubrange(openRange.lowerBound..<closeRange.upperBound, with: replacement)
         }
         return result
+    }
+
+    // MARK: - Display Width Utilities
+
+    /// Calculate the visual display width of a string in terminal columns.
+    /// CJK and other East Asian characters count as 2 columns; ASCII as 1.
+    private static func displayWidth(_ string: String) -> Int {
+        var width = 0
+        for scalar in string.unicodeScalars {
+            if isDoubleWidthScalar(scalar.value) {
+                width += 2
+            } else if !scalar.properties.isDefaultIgnorableCodePoint && scalar != "\r" {
+                width += 1
+            }
+        }
+        return width
+    }
+
+    /// Whether a Unicode scalar is double-width in East Asian terminal contexts.
+    private static func isDoubleWidthScalar(_ v: UInt32) -> Bool {
+        // CJK Unified Ideographs + Extensions
+        (0x4E00...0x9FFF).contains(v) ||
+        (0x3400...0x4DBF).contains(v) ||
+        (0x20000...0x2A6DF).contains(v) ||
+        (0x2A700...0x2CEAF).contains(v) ||
+        // CJK Compatibility Ideographs
+        (0xF900...0xFAFF).contains(v) ||
+        (0x2F800...0x2FA1F).contains(v) ||
+        // Fullwidth Forms
+        (0xFF01...0xFF60).contains(v) ||
+        (0xFFE0...0xFFE6).contains(v) ||
+        // CJK Symbols, Punctuation, Hiragana, Katakana, Bopomofo
+        (0x3000...0x33FF).contains(v) ||
+        // Hangul Syllables + Jamo
+        (0xAC00...0xD7AF).contains(v) ||
+        (0x1100...0x11FF).contains(v) ||
+        (0x3130...0x318F).contains(v)
+    }
+
+    /// Truncate a string to fit within the given display width (terminal columns).
+    private static func truncateToDisplayWidth(_ string: String, maxWidth: Int) -> String {
+        var width = 0
+        var idx = string.startIndex
+        while idx < string.endIndex {
+            let charWidth = displayWidth(String(string[idx]))
+            if width + charWidth > maxWidth {
+                break
+            }
+            width += charWidth
+            idx = string.index(after: idx)
+        }
+        return String(string[..<idx])
+    }
+
+    // MARK: - Table Rendering
+
+    /// Check if a line is a table row (starts and ends with |).
+    private static func isTableLine(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        return trimmed.hasPrefix("|") && trimmed.hasSuffix("|") && trimmed.count >= 2
+    }
+
+    /// Check if a line is a table separator row (e.g., |---|---|).
+    private static func isTableSeparator(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("|") && trimmed.hasSuffix("|") else { return false }
+        // Split and check each cell contains only -, :, or whitespace
+        let inner = String(trimmed.dropFirst().dropLast())
+        let cells = inner.split(separator: "|", omittingEmptySubsequences: false)
+        return cells.allSatisfy { cell in
+            let content = cell.trimmingCharacters(in: .whitespaces)
+            return content.isEmpty || content.allSatisfy { $0 == "-" || $0 == ":" }
+        }
+    }
+
+    /// Extract cell contents from a table row.
+    private static func extractCells(_ line: String) -> [String] {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        // Remove leading and trailing |
+        let inner = String(trimmed.dropFirst().dropLast())
+        return inner.split(separator: "|", omittingEmptySubsequences: false).map {
+            $0.trimmingCharacters(in: .whitespaces)
+        }
+    }
+
+    /// Render a table block with box-drawing borders.
+    ///
+    /// Parses Markdown table rows and renders with Unicode box-drawing characters.
+    /// Header row is bold; numeric cells are right-aligned.
+    static func renderTable(_ lines: [String], terminalWidth: Int) -> String {
+        // Separate header, separator, and data rows
+        var headerCells: [String] = []
+        var dataRows: [[String]] = []
+        var separatorFound = false
+
+        for line in lines {
+            if isTableSeparator(line) {
+                separatorFound = true
+                continue
+            }
+            let cells = extractCells(line)
+            if headerCells.isEmpty && !separatorFound {
+                headerCells = cells
+            } else {
+                dataRows.append(cells)
+            }
+        }
+
+        let columnCount = headerCells.count
+        guard columnCount > 0 else { return lines.joined(separator: "\n") }
+
+        // Calculate column widths (max content length per column)
+        var colWidths = Array(repeating: 0, count: columnCount)
+
+        for (i, cell) in headerCells.enumerated() {
+            colWidths[i] = max(colWidths[i], displayWidth(cell))
+        }
+        for row in dataRows {
+            for i in 0..<columnCount {
+                let cell = i < row.count ? row[i] : ""
+                colWidths[i] = max(colWidths[i], displayWidth(cell))
+            }
+        }
+
+        // Apply terminal width constraints: cap each column proportionally
+        let totalPadding = (columnCount + 1) * 3 // border chars + padding
+        let availableWidth = max(terminalWidth - totalPadding, columnCount * 4)
+        let maxPerCol = availableWidth / columnCount
+
+        for i in 0..<columnCount {
+            if colWidths[i] > maxPerCol {
+                colWidths[i] = maxPerCol
+            }
+        }
+
+        // Helper: format a cell with padding and optional alignment
+        func formatCell(_ content: String, colIndex: Int, width: Int) -> String {
+            let truncated: String
+            if displayWidth(content) > width {
+                if width > 3 {
+                    truncated = truncateToDisplayWidth(content, maxWidth: width - 3) + "..."
+                } else {
+                    truncated = truncateToDisplayWidth(content, maxWidth: width)
+                }
+            } else {
+                truncated = content
+            }
+
+            let isNumeric = content.allSatisfy { $0.isNumber || $0 == "." || $0 == "-" || $0 == "+" }
+            let truncatedWidth = displayWidth(truncated)
+            if isNumeric && truncatedWidth < width {
+                let padding = width - truncatedWidth
+                return String(repeating: " ", count: padding) + truncated
+            } else if truncatedWidth < width {
+                return truncated + String(repeating: " ", count: width - truncatedWidth)
+            }
+            return truncated
+        }
+
+        // Build horizontal borders
+        func buildBorder(left: String, mid: String, right: String, fill: String = "\u{2500}") -> String {
+            var parts = [String]()
+            parts.append(left)
+            for (i, w) in colWidths.enumerated() {
+                // +2 for padding spaces on each side of content
+                let segLen = w + 2
+                parts.append(String(repeating: fill, count: segLen))
+                if i < colWidths.count - 1 {
+                    parts.append(mid)
+                }
+            }
+            parts.append(right)
+            return parts.joined()
+        }
+
+        // Build a content row
+        func buildRow(_ cells: [String], bold: Bool = false) -> String {
+            var parts = [String]()
+            parts.append("\u{2502}")
+            for i in 0..<columnCount {
+                let content = i < cells.count ? cells[i] : ""
+                let formatted = formatCell(content, colIndex: i, width: colWidths[i])
+                let cell = " \(formatted) "
+                if bold {
+                    parts.append(ANSI.bold(cell))
+                } else {
+                    parts.append(cell)
+                }
+                parts.append("\u{2502}")
+            }
+            return parts.joined()
+        }
+
+        // Assemble table
+        var result: [String] = []
+        result.append(buildBorder(left: "\u{250C}", mid: "\u{252C}", right: "\u{2510}"))
+        result.append(buildRow(headerCells, bold: true))
+
+        if !dataRows.isEmpty {
+            result.append(buildBorder(left: "\u{251C}", mid: "\u{253C}", right: "\u{2524}"))
+            for row in dataRows {
+                result.append(buildRow(row))
+            }
+        }
+
+        result.append(buildBorder(left: "\u{2514}", mid: "\u{2534}", right: "\u{2518}"))
+        return result.joined(separator: "\n")
+    }
+
+    // MARK: - Blockquote Rendering
+
+    /// Check if a line is a blockquote line (starts with >).
+    private static func isBlockquoteLine(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        return trimmed.hasPrefix(">")
+    }
+
+    /// Render a blockquote block with │ prefix.
+    static func renderBlockquote(_ lines: [String]) -> String {
+        return lines.map { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let content: String
+            if trimmed.hasPrefix("> ") {
+                content = String(trimmed.dropFirst(2))
+            } else if trimmed.hasPrefix(">") {
+                content = String(trimmed.dropFirst(1))
+            } else {
+                content = trimmed
+            }
+            let renderedContent = renderInline(content)
+            return "\u{2502} " + renderedContent
+        }.joined(separator: "\n")
+    }
+
+    // MARK: - Horizontal Rule Rendering
+
+    /// Check if text is a horizontal rule (only -, *, or _ characters, at least 3, no |).
+    private static func isHorizontalRule(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        // Must not contain | (that would be a table row)
+        guard !trimmed.contains("|") else { return false }
+        // Single line only
+        guard !trimmed.contains("\n") else { return false }
+        // Remove all allowed characters
+        let filtered = trimmed.filter { $0 != "-" && $0 != "*" && $0 != "_" && $0 != " " }
+        guard filtered.isEmpty else { return false }
+        // Must have at least 3 non-space characters
+        let nonSpace = trimmed.filter { $0 != " " }
+        return nonSpace.count >= 3
+    }
+
+    /// Render a horizontal rule as a line of ─ characters spanning the terminal width.
+    static func renderHorizontalRule(terminalWidth: Int) -> String {
+        return String(repeating: "\u{2500}", count: terminalWidth)
     }
 }

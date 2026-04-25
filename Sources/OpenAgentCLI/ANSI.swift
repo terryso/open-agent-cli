@@ -46,6 +46,11 @@ enum ANSI {
         "\u{001B}[3m\(text)\u{001B}[0m"
     }
 
+    /// Underline text styling.
+    static func underline(_ text: String) -> String {
+        "\u{001B}[4m\(text)\u{001B}[0m"
+    }
+
     /// Reset all styling.
     static func reset() -> String {
         "\u{001B}[0m"

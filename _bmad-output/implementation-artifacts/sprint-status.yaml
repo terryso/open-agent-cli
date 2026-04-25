@@ -1,5 +1,5 @@
 # generated: 2026-04-19
-# last_updated: 2026-04-25 (Story 10-1 review)
+# last_updated: 2026-04-25 (Story 10-2 created)
 # project: open-agent-cli
 # project_key: NOKEY
 # tracking_system: file-system
@@ -118,6 +118,6 @@ development_status:
   # Epic 10: 终端输出美化 (P1)
   epic-10: in-progress
   10-1-turn-labels-and-visual-separation: done
-  10-2-markdown-table-and-block-element-rendering: backlog
+  10-2-markdown-table-and-block-element-rendering: done
   10-3-streaming-table-buffer-and-rendering: backlog
   epic-10-retrospective: optional
