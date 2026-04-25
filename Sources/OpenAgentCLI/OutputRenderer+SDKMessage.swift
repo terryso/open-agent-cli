@@ -20,6 +20,11 @@ extension OutputRenderer {
         if data.text.hasPrefix("[thinking]") {
             output.write(ANSI.dim(data.text))
         } else {
+            // AC#1: Output blue "●" prefix on first partialMessage chunk of this turn.
+            if !markdownBuffer.turnHeaderPrinted {
+                output.write(ANSI.blue("●") + " ")
+                markdownBuffer.markTurnHeaderPrinted()
+            }
             markdownBuffer.append(data.text)
         }
     }
@@ -42,7 +47,8 @@ extension OutputRenderer {
 
         let errorLine = ANSI.red("Error: \(error.rawValue)")
         let guidance = actionableGuidance(for: error)
-        output.write("\(errorLine) -- \(guidance)\n")
+        // AC#7: Blank line before error for visual separation.
+        output.write("\n\(errorLine) -- \(guidance)\n")
     }
 
     // MARK: - AC#3, AC#5: result -- flush Markdown, then summary line
@@ -57,6 +63,9 @@ extension OutputRenderer {
     func renderResult(_ data: SDKMessage.ResultData) {
         // Flush any remaining buffered Markdown content
         markdownBuffer.flush()
+
+        // AC#2: Reset turn state for next turn.
+        markdownBuffer.resetTurnHeader()
 
         switch data.subtype {
         case .success:
@@ -87,8 +96,9 @@ extension OutputRenderer {
     ///
     /// Only the message text is displayed -- no full JSON dump.
     func renderSystem(_ data: SDKMessage.SystemData) {
+        // AC#6: Blank line before system message for visual separation.
         let line = ANSI.dim("[system] \(data.message)")
-        output.write("\(line)\n")
+        output.write("\n\(line)\n")
     }
 
     // MARK: - AC#6: toolUse -- cyan tool call line with args summary
@@ -98,6 +108,11 @@ extension OutputRenderer {
     /// Parses the `input` JSON string to extract key arguments and display
     /// a concise summary. Falls back gracefully for empty or invalid JSON.
     func renderToolUse(_ data: SDKMessage.ToolUseData) {
+        // AC#4: Blank line before first tool call in this turn (after AI text).
+        if markdownBuffer.turnHeaderPrinted && markdownBuffer.firstToolInTurn {
+            output.write("\n")
+            markdownBuffer.markToolInTurn()
+        }
         let summary = summarizeInput(data.input)
         let line = summary.isEmpty
             ? ANSI.cyan("> \(data.toolName)")

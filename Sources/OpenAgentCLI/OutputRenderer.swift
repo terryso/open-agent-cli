@@ -61,6 +61,25 @@ final class MarkdownBuffer: @unchecked Sendable {
     private var insideCodeBlock = false
     private let output: AnyTextOutputStream
 
+    // MARK: - Turn state tracking (Story 10.1)
+
+    private var _turnHeaderPrinted = false
+    private var _firstToolInTurn = true
+
+    /// Whether the blue "●" prefix has been printed for the current AI turn.
+    var turnHeaderPrinted: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _turnHeaderPrinted
+    }
+
+    /// Whether the first tool call in the current turn has been seen.
+    var firstToolInTurn: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _firstToolInTurn
+    }
+
     init(output: AnyTextOutputStream) {
         self.output = output
     }
@@ -106,6 +125,30 @@ final class MarkdownBuffer: @unchecked Sendable {
         }
         buffer = ""
         insideCodeBlock = false
+    }
+
+    // MARK: - Turn State Management (Story 10.1)
+
+    /// Mark that the blue "●" turn header has been printed for this turn.
+    func markTurnHeaderPrinted() {
+        lock.lock()
+        defer { lock.unlock() }
+        _turnHeaderPrinted = true
+    }
+
+    /// Mark that the first tool call in this turn has been seen.
+    func markToolInTurn() {
+        lock.lock()
+        defer { lock.unlock() }
+        _firstToolInTurn = false
+    }
+
+    /// Reset turn state for a new turn. Called from `renderResult`.
+    func resetTurnHeader() {
+        lock.lock()
+        defer { lock.unlock() }
+        _turnHeaderPrinted = false
+        _firstToolInTurn = true
     }
 
     // MARK: - Private

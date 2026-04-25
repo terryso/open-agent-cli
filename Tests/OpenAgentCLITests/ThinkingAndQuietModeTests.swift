@@ -80,9 +80,9 @@ final class ThinkingAndQuietModeTests: XCTestCase {
         renderer.render(.partialMessage(data))
 
         // In quiet mode, partialMessage text should still be rendered.
-        // This is the primary user-facing content stream.
-        XCTAssertEqual(mock.output, "Hello from agent",
-            "Quiet mode should still render .partialMessage text")
+        // This is the primary user-facing content stream. Includes blue bullet prefix (Story 10.1).
+        XCTAssertEqual(mock.output, ANSI.blue("●") + " Hello from agent",
+            "Quiet mode should still render .partialMessage text with bullet prefix")
     }
 
     func testQuietMode_silencesToolUse() throws {

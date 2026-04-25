@@ -1,5 +1,5 @@
 # generated: 2026-04-19
-# last_updated: 2026-04-24 (Story 9-5 done)
+# last_updated: 2026-04-25 (Story 10-1 review)
 # project: open-agent-cli
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-19
-last_updated: 2026-04-24
+last_updated: 2026-04-25
 project: open-agent-cli
 project_key: NOKEY
 tracking_system: file-system
@@ -114,3 +114,10 @@ development_status:
   9-4-tab-completion: done
   9-5-multiline-input: done
   epic-9-retrospective: optional
+
+  # Epic 10: 终端输出美化 (P1)
+  epic-10: in-progress
+  10-1-turn-labels-and-visual-separation: done
+  10-2-markdown-table-and-block-element-rendering: backlog
+  10-3-streaming-table-buffer-and-rendering: backlog
+  epic-10-retrospective: optional

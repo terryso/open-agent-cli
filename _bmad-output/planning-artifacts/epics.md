@@ -72,6 +72,11 @@ FR10.2: 通过 `--skill <name>` 调用特定技能 (P0)
 FR10.3: 在 REPL 中通过 `/skills` 列出可用技能 (P2)
 FR10.4: 通过配置文件注册自定义工具 (P2)
 
+FR-DISP1: Turn 标签与视觉分隔 — 用户/AI 输出清晰区分 (P1)
+FR-DISP2: Markdown 表格终端渲染 — box-drawing 字符对齐 (P1)
+FR-DISP3: 引用块/分割线/链接/标题装饰渲染 (P1)
+FR-DISP4: 流式场景下表格缓冲与完整渲染 (P1)
+
 ### 非功能需求
 
 NFR1.1: CLI 启动时间 < 2 秒（冷启动）
@@ -166,6 +171,11 @@ FR10.2: Epic 2 — Story 2.3
 FR10.3: Epic 7 — Story 7.7
 FR10.4: Epic 7 — Story 7.7
 
+FR-DISP1: Epic 10 — Story 10.1
+FR-DISP2: Epic 10 — Story 10.2
+FR-DISP3: Epic 10 — Story 10.2
+FR-DISP4: Epic 10 — Story 10.3
+
 ## Epic 列表
 
 ### Epic 1: 首次对话
@@ -209,6 +219,13 @@ FR10.4: Epic 7 — Story 7.7
 **覆盖的 FR：** NFR4.1, NFR4.2, NFR4.3, NFR4.4
 **覆盖的 NFR：** NFR2.5, NFR3.2, NFR3.4
 **优先级：** P0
+
+### Epic 10: 终端输出美化
+用户在 REPL 中能清晰区分自己的输入和 AI 的各类输出，Markdown 内容（尤其是表格）获得人类友好的终端渲染，整体阅读体验从"原始日志"升级为"结构化对话"。
+**覆盖的 FR：** FR-DISP1, FR-DISP2, FR-DISP3, FR-DISP4
+**覆盖的 NFR：** NFR3.2, NFR3.4
+**优先级：** P1
+**依赖：** Epic 1（OutputRenderer 基础设施）, Story 6.5（Markdown 渲染基础）
 
 ---
 
@@ -1262,3 +1279,203 @@ FR-REPL3: Epic 9 — Story 9.5
 **文件：** `REPLLoop.swift`（多行状态机：检测 `\` 和 `"""`，累积行缓冲，切换 prompt）
 **实现依赖：** Story 9.3（需要 `LinenoiseInputReader`）
 **实现说明：** linenoise 是行导向的（每次 `readLine` 返回一行）。多行逻辑在 REPLLoop 层实现：检测行尾 `\` 或独立的 `"""` 标记，切换 prompt 为 `...>`，累积行直到满足终止条件后合并发送。
+
+---
+
+## Epic 10: 终端输出美化
+
+用户在 REPL 中能清晰区分自己的输入和 AI 的各类输出，Markdown 内容（尤其是表格）获得人类友好的终端渲染，整体阅读体验从"原始日志"升级为"结构化对话"。
+
+**覆盖的 FR：** FR-DISP1 (Turn 标签), FR-DISP2 (表格渲染), FR-DISP3 (引用块/分割线/链接), FR-DISP4 (流式表格缓冲)
+**覆盖的 NFR：** NFR3.2 (输出可读), NFR3.4 (跨平台)
+**优先级：** P1
+**依赖：** Epic 1（OutputRenderer 基础设施）, Story 6.5（Markdown 渲染基础）
+**技术方案：** 在现有 `MarkdownRenderer` 和 `OutputRenderer` 基础上增强，不引入新的 SPM 依赖。所有渲染基于 ANSI escape codes + Unicode box-drawing characters。
+
+### 当前痛点
+
+1. **角色混淆**：用户输入和 AI 输出视觉上无法区分，没有标签头或分隔
+2. **Markdown 表格裸显示**：`| Name | Status |` 管道符原文直出，难以阅读
+3. **其他 Markdown 元素未渲染**：引用块 (`> quote`)、水平分割线 (`---`)、链接 (`[text](url)`) 以原文显示
+4. **标题装饰不足**：H1/H2 仅加粗，缺乏视觉层次感
+
+### FR 覆盖映射（Epic 10）
+
+FR-DISP1: Epic 10 — Story 10.1
+FR-DISP2: Epic 10 — Story 10.2
+FR-DISP3: Epic 10 — Story 10.2
+FR-DISP4: Epic 10 — Story 10.3
+
+### Story 10.1: Turn 标签与视觉分隔
+
+作为一个用户，
+我想要清楚地看到哪些是我说的、哪些是 AI 回复的，
+以便我在多轮对话中不会迷失上下文。
+
+**验收标准：**
+
+**假设** AI 开始回复文本
+**当** `SDKMessage.partialMessage` 第一个 chunk 到达
+**那么** 在文本前输出蓝色 `● ` 前缀（`\u{001B}[34m●\u{001B}[0m `）
+**并且** 后续 chunk 不再重复输出前缀
+
+**假设** 一个完整的 Agent turn 结束
+**当** `SDKMessage.result(data)` 到达且 `subtype == .success`
+**那么** 在 result 分隔线前输出一个空行，视觉上与下一个 turn 分隔
+
+**假设** 用户输入一条消息
+**当** 消息被发送到 Agent
+**那么** 用户输入行上方显示绿色 `> ` 前缀（已有，无需改动）
+
+**假设** 工具调用被触发
+**当** `SDKMessage.toolUse` 到达
+**那么** 工具调用行保持青色 `> toolName(args)`（已有），但在首个工具调用前输出空行与 AI 文本分隔
+
+**假设** 工具结果返回
+**当** `SDKMessage.toolResult` 到达
+**那么** 结果保持灰色缩进显示（已有）
+
+**假设** 系统消息到达
+**当** `SDKMessage.system` 到达
+**那么** 保持灰色 `[system]` 前缀（已有），前加空行分隔
+
+**假设** AI 回复过程中出现错误
+**当** `SDKMessage.assistant` 包含 error
+**那么** 错误信息以红色显示（已有），前加空行分隔
+
+**颜色方案总览：**
+
+| 元素 | 前缀 | ANSI 颜色 | 示例 |
+|------|------|-----------|------|
+| 用户输入 | `> ` | 绿色 (32) | `> hello` |
+| AI 文本 | `● ` | 蓝色 (34) | `● Here is the answer...` |
+| 工具调用 | `> ` | 青色 (36) | `> Read(file_path: ...)` |
+| 工具结果 | `  ` (缩进) | 默认/dim | `  file contents...` |
+| 系统消息 | `[system]` | dim (2) | `[system] compaction...` |
+| 错误 | `Error:` | 红色 (31) | `Error: rate limit` |
+| 分隔线 | `---` | dim (2) | `--- Turns: 1 | Cost: ...` |
+
+**SDK API：** `SDKMessage`（所有变体）
+**文件：** `OutputRenderer+SDKMessage.swift`（添加 turn 前缀和空行逻辑）, `ANSI.swift`（添加 `blue()` 如不存在）
+**实现说明：** 核心改动在 `renderPartialMessage` 中——追踪是否已输出当前 turn 的 `● ` 前缀。`OutputRenderer` 添加 `private var turnHeaderPrinted = false` 状态，首个 partialMessage chunk 输出 `● ` 后置为 true，`renderResult` 时重置为 false。工具调用前的空行通过在 `renderToolUse` 首次调用时检查状态实现。
+
+### Story 10.2: Markdown 表格与块级元素渲染
+
+作为一个用户，
+我想要看到表格、引用块、分割线和链接的终端渲染效果，
+以便 AI 输出的结构化内容一目了然。
+
+**验收标准：**
+
+**AC#1: 表格渲染**
+
+**假设** AI 输出包含 Markdown 表格
+```
+| Name | Status | Count |
+|------|--------|-------|
+| foo  | active | 3     |
+| bar  | idle   | 0     |
+```
+**当** 渲染到终端
+**那么** 使用 box-drawing 字符渲染为：
+```
+┌──────┬──────────┬───────┐
+│ Name │ Status   │ Count │
+├──────┼──────────┼───────┤
+│ foo  │ active   │     3 │
+│ bar  │ idle     │     0 │
+└──────┴──────────┴───────┘
+```
+**并且** 表头行加粗显示
+**并且** 列宽按最长内容自动对齐（左右各留 1 空格 padding）
+
+**假设** 表格列数不一致
+**当** 渲染到终端
+**那么** 缺失列用空格填充，不崩溃
+
+**假设** 单元格内容超过终端宽度
+**当** 渲染到终端
+**那么** 内容被截断并追加 `…`，表格不超宽
+
+**AC#2: 引用块渲染**
+
+**假设** AI 输出包含引用块
+```
+> This is a quote
+> spanning multiple lines
+```
+**当** 渲染到终端
+**那么** 每行前加灰色 `│ ` 前缀：
+```
+│ This is a quote
+│ spanning multiple lines
+```
+
+**AC#3: 水平分割线**
+
+**假设** AI 输出包含 `---` 或 `***` 或 `___`
+**当** 渲染到终端
+**那么** 输出一行 `─` 字符，长度为终端宽度
+
+**AC#4: 链接渲染**
+
+**假设** AI 输出包含链接 `[text](url)`
+**当** 渲染到终端
+**那么** 显示为 `text`（下划线样式），URL 不显示
+
+**AC#5: 标题装饰增强**
+
+**假设** AI 输出 H1 标题 `# Title`
+**当** 渲染到终端
+**那么** 加粗 + 下方追加 `═══` 装饰线（与标题等长）
+
+**假设** AI 输出 H2 标题 `## Title`
+**当** 渲染到终端
+**那么** 加粗 + 下方追加 `───` 装饰线（与标题等长）
+
+**假设** AI 输出 H3-H6 标题
+**当** 渲染到终端
+**那么** 仅加粗（已有行为，不变）
+
+**SDK API：** 无（纯渲染逻辑）
+**文件：** `MarkdownRenderer.swift`（新增 `renderTable`, `renderBlockquote`, `renderHorizontalRule`, `renderLink` 方法；增强 `renderHeading` 和 `renderBlock` 的分支逻辑；增强 `renderInline` 支持链接语法）
+**实现说明：**
+- **表格解析**：在 `splitIntoBlocks` 中识别 `|...|` 模式的连续行作为一个 block。`renderTable` 计算每列最大宽度，用 box-drawing 字符绘制。表头分隔行 (`|---|---|`) 不输出，仅用于检测表格结构。
+- **引用块**：在 `renderBlock` 中检测以 `> ` 开头的连续行，聚合后调用 `renderBlockquote`。
+- **分割线**：在 `renderBlock` 中检测仅由 `-`、`*`、`_` 和空格组成的行。
+- **链接**：在 `renderInline` 中匹配 `[text](url)` 模式，替换为 `ANSI.underline(text)`。
+- **标题装饰**：修改 `renderHeading`，H1 追加 `═══`，H2 追加 `───`。
+
+### Story 10.3: 流式场景下的表格缓冲与渲染
+
+作为一个用户，
+我想要在 AI 流式输出表格时看到完整的渲染效果而非碎片，
+以便表格不会在流式过程中变形或闪烁。
+
+**验收标准：**
+
+**假设** AI 流式输出中开始一个表格（首个 chunk 包含 `| Name |`）
+**当** `MarkdownBuffer.append()` 检测到表格行开始
+**那么** 后续 chunk 被缓冲，直到检测到表格结束（非 `|` 行或空行）
+**当** 表格结束后
+**那么** 整个表格一次性通过 `MarkdownRenderer.renderTable()` 渲染输出
+
+**假设** AI 在流式输出中产生多个表格
+**当** 每个表格独立缓冲和渲染
+**那么** 每个表格都正确渲染，互不干扰
+
+**假设** AI 输出的表格跨越多个 chunk 且 chunk 在单元格中间拆分
+**当** 缓冲区累积内容
+**那么** 正确拼接后在表格结束时渲染，不因 chunk 边界导致格式错误
+
+**假设** AI 的回复在表格中间被中断（如用户 Ctrl+C）
+**当** `MarkdownBuffer.flush()` 被调用
+**那么** 已缓冲的表格内容以最佳努力渲染（可能不完整但不崩溃）
+
+**假设** 表格后紧跟非表格文本
+**当** 流式继续
+**那么** 非表格文本正常通过 `renderInline` 即时输出
+
+**SDK API：** 无（纯渲染逻辑）
+**文件：** `OutputRenderer.swift`（`MarkdownBuffer` 扩展表格缓冲状态机）
+**实现说明：** 在 `MarkdownBuffer` 中添加第三个缓冲状态 `insideTableBlock`。检测逻辑：当非 code-block 状态下遇到 `|...|` 模式的行，进入表格缓冲模式。表格结束条件：遇到空行或非 `|` 开头的行。`flush()` 时如有未完成表格，按已有行渲染（header + 已有数据行）。表格检测使用正则 `^\|.*\|$` 匹配（trim 后）。

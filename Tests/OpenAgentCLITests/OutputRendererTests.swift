@@ -48,9 +48,9 @@ final class OutputRendererTests: XCTestCase {
 
         renderer.render(.partialMessage(data))
 
-        // AC#1: Text is output directly, no trailing newline
-        XCTAssertEqual(mock.output, "Hello",
-            "partialMessage should output text without trailing newline (terminator: '')")
+        // AC#1: Text is output directly, no trailing newline. Includes blue bullet prefix (Story 10.1).
+        XCTAssertEqual(mock.output, ANSI.blue("●") + " Hello",
+            "partialMessage should output blue bullet + text without trailing newline")
     }
 
     func testPartialMessage_multipleChunks_concatenates() throws {
@@ -60,9 +60,9 @@ final class OutputRendererTests: XCTestCase {
         renderer.render(.partialMessage(SDKMessage.PartialData(text: " ")))
         renderer.render(.partialMessage(SDKMessage.PartialData(text: "world")))
 
-        // AC#1: Multiple chunks concatenate without separators
-        XCTAssertEqual(mock.output, "Hello world",
-            "Multiple partialMessage chunks should concatenate without separators")
+        // AC#1: Multiple chunks concatenate without separators. Includes bullet prefix on first chunk (Story 10.1).
+        XCTAssertEqual(mock.output, ANSI.blue("●") + " Hello world",
+            "Multiple partialMessage chunks should concatenate after bullet prefix")
     }
 
     func testPartialMessage_emptyString_noOutput() throws {
@@ -525,8 +525,8 @@ final class OutputRendererTests: XCTestCase {
 
         renderer.render(.partialMessage(SDKMessage.PartialData(text: "test")))
 
-        XCTAssertEqual(mock.output, "test",
-            "OutputRenderer should write through TextOutputStream abstraction")
+        XCTAssertEqual(mock.output, ANSI.blue("●") + " test",
+            "OutputRenderer should write bullet + text through TextOutputStream abstraction")
     }
 
     func testOutputRenderer_defaultInit_succeeds() throws {
